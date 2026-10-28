@@ -63,7 +63,7 @@ install_hook() {
   gitdir=$(cd "$ROOT" && cd "$gitdir" && pwd -P)
   hooks="$gitdir/hooks"
   dst="$hooks/pre-commit"
-  if [ -e "$dst" ] && ! cmp -s "$src" "$dst"; then
+  if [ -e "$dst" ] && ! cmp -s "$src" "$dst" && ! grep -q 'agentic-brain/bin/check.sh' "$dst"; then
     err "$dst" "another pre-commit hook exists and was left alone, add a call to agentic-brain/bin/check.sh to it"
     return 1
   fi

@@ -165,6 +165,10 @@ else
   echo "ok   hook rejects a commit on error"
 fi
 
+fresh; mkdir -p "$W/.git/hooks"; printf '#!/bin/sh\n# old agentic-brain hook\nbash agentic-brain/bin/check.sh\n' > "$W/.git/hooks/pre-commit"
+(cd "$W" && bash agentic-brain/bin/check.sh --install-hook) > /dev/null 2>&1
+expect_true "an older own hook is replaced" cmp -s "$W/agentic-brain/bin/pre-commit" "$W/.git/hooks/pre-commit"
+
 fresh; mkdir -p "$W/.git/hooks"; printf '#!/bin/sh\nexit 0\n' > "$W/.git/hooks/pre-commit"
 (cd "$W" && bash agentic-brain/bin/check.sh --install-hook) > "$TMP/hook3.out" 2>&1; RC=$?; OUT=$(cat "$TMP/hook3.out")
 expect "foreign hook is not overwritten" 1 "another pre-commit hook exists"
