@@ -1,5 +1,5 @@
-# Programy, ktorých ručné opakovanie hook repeat_guard.mjs nepočíta.
-# Jeden program na riadok. Riadok s # je poznámka.
+# Programs whose manual repetition the hook repeat_guard.mjs does not count.
+# One program per line. A line starting with # is a comment.
 git
 ls
 cat

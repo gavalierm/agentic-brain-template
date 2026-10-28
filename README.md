@@ -1,62 +1,62 @@
 # agentic-brain-template
 
-Šablóna priečinka `agentic-brain/` pre repo projektu. Agent v ňom nájde pravidlá, skilly, artefakty, register chýb, rozhodnutia a pamäť na jednom viditeľnom mieste. Potrebuje len git, bash a node. Server, správca úloh ani iný nástroj nie sú potrebné.
+This is a template for the `agentic-brain/` folder of a project repo. The agent finds rules, skills, artifacts, an error register, decisions and memory in one visible place. It needs only git, bash and node. No server, task manager or other tool is required.
 
-## Čo repo je
+## What the repo is
 
-Repo má dve použitia s tou istou štruktúrou.
+The repo has two uses with the same structure.
 
-- Priečinok `agentic-brain/` v repe projektu je lokálna vrstva. Nesie pravidlá a znalosť jedného projektu.
-- Repo `~/agentic-brain` na stroji agenta je globálna vrstva. Nesie pravidlá a skilly pre všetky projekty stroja.
+- The `agentic-brain/` folder in a project repo is the local layer. It holds the rules and knowledge of one project.
+- The repo `~/agentic-brain` on the agent's machine is the global layer. It holds the rules and skills for all projects on that machine.
 
-V projekte `CLAUDE.md` a `AGENTS.md` v koreni majú jediný riadok `@agentic-brain/RULES.md`. Globálna vrstva sa do projektu nekopíruje, načíta ju `~/.claude/CLAUDE.md` používateľa.
+In a project, `CLAUDE.md` and `AGENTS.md` in the root each hold a single line, `@agentic-brain/RULES.md`. The global layer is not copied into the project. The user's `~/.claude/CLAUDE.md` loads it.
 
-Claude Code číta skilly len z `.claude/skills/<meno>`. Preto je tam pre každý skill symlink na `agentic-brain/skills/<meno>`. Priečinok `.claude/` nesie len symlinky a `settings.json`, dáta v ňom nie sú. Symlinky v gite na Windows vyžadujú nastavenie a nie sú overené. Bash na Windows ide cez Git Bash alebo WSL.
+Claude Code reads skills only from `.claude/skills/<name>`. For that reason each skill has a symlink there that points to `agentic-brain/skills/<name>`. The `.claude/` folder holds only symlinks and `settings.json`. It holds no data. Symlinks in git need a setting on Windows and are not verified there. On Windows, run bash through Git Bash or WSL.
 
-## Nové repo
+## New repo
 
-1. Na GitHube použi "Use this template", alebo repo naklonuj a zmaž jeho históriu.
-2. Spusti `agentic-brain/bin/install.sh`. Doplní symlinky skillov a nainštaluje pre-commit hook.
-3. Spusti `agentic-brain/bin/check.sh`.
+1. On GitHub, use "Use this template", or clone the repo and delete its history.
+2. Run `agentic-brain/bin/install.sh`. It adds the skill symlinks and installs the pre-commit hook.
+3. Run `agentic-brain/bin/check.sh`.
 
-## Existujúce repo
+## Existing repo
 
-Z klonu šablóny spusti `agentic-brain/bin/adopt.sh <cesta-k-repu>`. Skript skopíruje `agentic-brain/` bez prepísania existujúcich súborov a vypíše, čo preskočil. Založí symlinky skillov a `.claude/settings.json` (ak chýba, inak vypíše, čo doň pridať). Pridá riadok `@agentic-brain/RULES.md` do `CLAUDE.md` a `AGENTS.md` a riadky pre `scratch/` do `.gitignore`. Nič necommituje.
+From a clone of the template, run `agentic-brain/bin/adopt.sh <path-to-repo>`. The script copies `agentic-brain/` without overwriting existing files and prints what it skipped. It creates the skill symlinks and `.claude/settings.json` (if missing, otherwise it prints what to add). It adds the line `@agentic-brain/RULES.md` to `CLAUDE.md` and `AGENTS.md`, and the `scratch/` lines to `.gitignore`. It commits nothing.
 
-Potom v cieľovom repe spusti `agentic-brain/bin/check.sh --install-hook` a `agentic-brain/bin/check.sh`. Ak sa `CLAUDE.md` a `AGENTS.md` líšia, `check.sh` to vyhlási za chybu. Zjednoť ich.
+Then, in the target repo, run `agentic-brain/bin/check.sh --install-hook` and `agentic-brain/bin/check.sh`. If `CLAUDE.md` and `AGENTS.md` differ, `check.sh` reports an error. Make them identical.
 
-## Globálna vrstva
+## Global layer
 
-Globálne repo je obsah priečinka `agentic-brain/` v koreni, bez obalu projektu. Založ ho z tohto priečinka. Klon celej šablóny tiež funguje, import potom ukazuje na `~/agentic-brain/agentic-brain/RULES.md`.
+The global repo is the content of the `agentic-brain/` folder in the root, without the project wrapper. Create it from this folder. A clone of the whole template also works. The import then points to `~/agentic-brain/agentic-brain/RULES.md`.
 
-1. Naklonuj repo do `~/agentic-brain`.
-2. Spusti `bin/install.sh --global` z klonu (pri klone celej šablóny `agentic-brain/bin/install.sh --global`).
+1. Clone the repo to `~/agentic-brain`.
+2. Run `bin/install.sh --global` from the clone (for a clone of the whole template, `agentic-brain/bin/install.sh --global`).
 
-Skript pridá do `~/.claude/CLAUDE.md` riadok s importom `RULES.md` a vytvorí symlinky `~/.claude/skills/<meno>` do klonu. Existujúci cudzí symlink alebo priečinok nechá a vypíše ho. Druhý beh nič nezmení.
+The script adds a line to `~/.claude/CLAUDE.md` that imports `RULES.md`, and creates the symlinks `~/.claude/skills/<name>` into the clone. It leaves any existing foreign symlink or folder alone and prints it. A second run changes nothing.
 
-Cloud a Cowork relácie `~/.claude/` stroja nečítajú. Tam patrí kópia globálnej vrstvy priamo do repa projektu.
+Cloud and Cowork sessions do not read the `~/.claude/` of the machine. For those, put a copy of the global layer directly into the project repo.
 
-## Čo robí check.sh
+## What check.sh does
 
-`agentic-brain/bin/check.sh` beží z koreňa repa aj z podpriečinka. Pri chybe skončí kódom 1 a vypíše riadok s cestou na každú chybu. Kontroluje tieto veci.
+`agentic-brain/bin/check.sh` runs from the repo root and from any subfolder. On error it exits with code 1 and prints one line with a path for each error. It checks these things.
 
-- `CLAUDE.md` a `AGENTS.md` existujú, sú rovnaké a majú riadok importu.
-- Každý skill má `SKILL.md` s `description` a neprázdny `scripts/`.
-- Každý skill má symlink v `.claude/skills`. Chýbajúci vytvorí, visiaci zmaže, cudziu položku nahlási.
-- Skill s rovnakým menom v lokáli a v globále je chyba.
-- Každý artefakt má `PLAYBOOK.md` a neprázdny `reference/`.
-- Dva a viac riadkov registra chýb tej istej triedy bez opravy je chyba. Jeden je upozornenie.
-- `scratch/` je prázdny.
-- `MEMORY.md` a súbory pamäte sa zhodujú.
-- Relatívne odkazy v md súboroch ukazujú na existujúce súbory.
-- Skill alebo artefakt so `scope: shared`, ktorý nie je v globále, je upozornenie.
+- `CLAUDE.md` and `AGENTS.md` exist, are identical and contain the import line.
+- Each skill has a `SKILL.md` with a `description` and a non-empty `scripts/`.
+- Each skill has a symlink in `.claude/skills`. A missing one is created, a dangling one is deleted, a foreign entry is reported.
+- A skill with the same name in the local and the global layer is an error.
+- Each artifact has a `PLAYBOOK.md` and a non-empty `reference/`.
+- Two or more rows of the error register with the same class and no fix are an error. One such row is a warning.
+- `scratch/` is empty.
+- `MEMORY.md` and the memory files match.
+- Relative links in md files point to existing files.
+- A skill or artifact with `scope: shared` that is not in the global layer is a warning.
 
-Voliteľný pre-commit hook spustí `check.sh` pred každým commitom a pri chybe commit odmietne. Nainštaluje ho `agentic-brain/bin/check.sh --install-hook`. Hook sa kopíruje do `.git/hooks/pre-commit`, `core.hooksPath` sa nemení.
+The optional pre-commit hook runs `check.sh` before each commit and rejects the commit on error. Install it with `agentic-brain/bin/check.sh --install-hook`. The hook is copied to `.git/hooks/pre-commit`. The script does not change `core.hooksPath`.
 
-## Hook proti ručnému opakovaniu
+## Hook against manual repetition
 
-`.claude/settings.json` zapína hook `agentic-brain/bin/repeat_guard.mjs` pre nástroj Bash v Claude Code. Tretí rôzny ručný beh toho istého programu v relácii zamietne a vyzve na skript. Programy, ktoré hook nepočíta, sú v `agentic-brain/bin/repeat_guard.allow`. Hook je voliteľný, pravidlo a `check.sh` platia aj bez neho.
+`.claude/settings.json` turns on the hook `agentic-brain/bin/repeat_guard.mjs` for the Bash tool in Claude Code. The hook rejects the third different manual run of the same program in a session and asks for a script. Programs the hook does not count are listed in `agentic-brain/bin/repeat_guard.allow`. The hook is optional. The rule and `check.sh` apply without it.
 
-## Testy
+## Tests
 
-Spusti `agentic-brain/test/run.sh`. Testy bežia v dočasných priečinkoch, na tvoj HOME ani repo nesiahnu.
+Run `agentic-brain/test/run.sh`. The tests run in temporary folders and do not touch your HOME or your repo.

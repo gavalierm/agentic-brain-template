@@ -1,56 +1,56 @@
-# Pravidlá projektu
+# Project rules
 
-Súbor načíta agent v každej relácii. Platí pre všetko, čo robíš v tomto repe.
-Všetky dáta agenta sú v jednom viditeľnom priečinku `agentic-brain/`.
+The agent loads this file in every session. It applies to everything you do in this repo.
+All agent data is in one visible folder, `agentic-brain/`.
 
-## Kde čo je
+## Where things are
 
-- `agentic-brain/skills/<meno>/`: skill, `SKILL.md` a `scripts/`. Claude Code ho číta cez symlink `.claude/skills/<meno>`, ten založí `agentic-brain/bin/check.sh`.
-- `agentic-brain/artifacts/<meno>/`: schválený vzor práce, `PLAYBOOK.md` a `reference/`.
-- `agentic-brain/errors/REGISTER.md`: register chýb. Riadok pridá skript `skills/chyba/scripts/chyba.sh`.
-- `agentic-brain/decisions/`: rozhodnutia, jeden súbor `D0001-<slug>.md` na rozhodnutie. Nové založí `bin/rozhodni.sh`.
-- `agentic-brain/memory/MEMORY.md`: index pamäte, obsah je v `memory/<subor>.md`.
-- `agentic-brain/scratch/`: pracovné súbory úlohy. Git ich ignoruje, na konci úlohy je priečinok prázdny.
-- `agentic-brain/bin/`: kontrola `check.sh`, inštalácia `install.sh`, nasadenie `adopt.sh`, `rozhodni.sh` a hook `repeat_guard.mjs`.
+- `agentic-brain/skills/<name>/`: a skill, with `SKILL.md` and `scripts/`. Claude Code reads it through the symlink `.claude/skills/<name>`, which `agentic-brain/bin/check.sh` creates.
+- `agentic-brain/artifacts/<name>/`: an approved pattern of work, with `PLAYBOOK.md` and `reference/`.
+- `agentic-brain/errors/REGISTER.md`: the error register. The script `skills/error/scripts/error.sh` adds a row.
+- `agentic-brain/decisions/`: decisions, one file `D0001-<slug>.md` per decision. `bin/decide.sh` creates new ones.
+- `agentic-brain/memory/MEMORY.md`: the memory index. The content is in `memory/<file>.md`.
+- `agentic-brain/scratch/`: working files of a task. Git ignores them, and the folder is empty at the end of a task.
+- `agentic-brain/bin/`: the check `check.sh`, the installer `install.sh`, the rollout `adopt.sh`, `decide.sh` and the hook `repeat_guard.mjs`.
 
-Priečinok `.claude/` nesie len symlinky na skilly a `settings.json`. Dáta v ňom nie sú.
+The `.claude/` folder holds only symlinks to skills and `settings.json`. It holds no data.
 
-## Povinná automatizácia
+## Mandatory automation
 
-Ty rozhoduješ cieľ a kontroluješ výsledok. Mechanický krok robí skript.
+You decide the goal and check the result. A script does the mechanical step.
 
-Mechanický krok je upload, download, hľadanie, porovnanie, presun a prevod. Taký krok nerob ručne príkazmi v termináli. Napíš skript do `agentic-brain/skills/<meno>/scripts/` a spusti ho.
+A mechanical step is an upload, a download, a search, a comparison, a move or a conversion. Do not run such a step by hand with terminal commands. Write a script in `agentic-brain/skills/<name>/scripts/` and run it.
 
-- Ručný beh mechanického kroku je chyba. Zapíš ju do registra cez skill `chyba`.
-- Každý skill má `scripts/`. `SKILL.md` povie, čo rozhodne agent a čo urobí skript.
-- Skript, ktorý sa dá použiť znova, patrí do skillu, nie do `scratch/`.
-- Hook `bin/repeat_guard.mjs` (voliteľný, len Claude Code) zamietne tretí ručný beh toho istého programu s rôznymi argumentmi v jednej relácii. Pravidlo platí aj bez hooku.
+- A manual run of a mechanical step is an error. Record it in the register with the skill `error`.
+- Each skill has `scripts/`. `SKILL.md` says what the agent decides and what the script does.
+- A script you can reuse belongs in a skill, not in `scratch/`.
+- The hook `bin/repeat_guard.mjs` (optional, Claude Code only) rejects the third manual run of the same program with different arguments in one session. The rule applies without the hook too.
 
-## Koniec úlohy
+## End of task
 
-Pred hlásením konca spusti skill `koniec-ulohy`. Overí tieto body.
+Before you report the end of a task, run the skill `task-end`. It verifies these points.
 
-- `agentic-brain/bin/check.sh` prešiel bez chyby.
-- `agentic-brain/scratch/` je prázdny.
-- Opakovaný postup je skill so skriptom.
-- Chyba z behu je v registri chýb.
-- Nová vedomosť je v `memory/` alebo v `decisions/`.
-- Skill alebo artefakt s dosahom mimo projektu má vo frontmattri `scope: shared` a je v hlásení operátorovi.
+- `agentic-brain/bin/check.sh` passed without errors.
+- `agentic-brain/scratch/` is empty.
+- A repeated procedure is a skill with a script.
+- An error from the run is in the error register.
+- New knowledge is in `memory/` or in `decisions/`.
+- A skill or artifact that reaches beyond the project has `scope: shared` in its frontmatter and appears in the report to the operator.
 
-## Centrum a lokál
+## Central and local
 
-Tento priečinok je lokálna vrstva projektu. Voliteľná druhá vrstva je centrálne repo s tou istou štruktúrou. Na stroji agenta je klonované ako `~/agentic-brain` a nainštalované cez `agentic-brain/bin/install.sh --global`.
+This folder is the local layer of the project. The optional second layer is a central repo with the same structure. On the agent's machine it is cloned as `~/agentic-brain` and installed with `agentic-brain/bin/install.sh --global`.
 
-Voliteľný riadok `upstream: <url>` v hlavičke tohto súboru ukazuje na centrálne repo.
+An optional line `upstream: <url>` in the header of this file points to the central repo.
 
-Položku so `scope: shared` povyšuje do centra operátor. Agent ju len označí v hlásení konca úlohy. Skill s rovnakým menom v lokáli a v centre je chyba, `check.sh` ju nahlási.
+The operator promotes an item with `scope: shared` to the center. The agent only marks it in the end-of-task report. A skill with the same name in the local and the central layer is an error, and `check.sh` reports it.
 
-## Artefakt
+## Artifact
 
-Artefakt je schválený vzor opakovanej práce. Pred návrhom alebo implementáciou veci, ktorú môže artefakt pokrývať, pozri zoznam `agentic-brain/artifacts/`.
+An artifact is an approved pattern for repeated work. Before you design or implement something an artifact may cover, look at the list in `agentic-brain/artifacts/`.
 
-1. Ak jeden sedí, prečítaj celý `PLAYBOOK.md` a otvor súbory v `reference/`.
-2. Hodnoty (farby, rozmery, písmo, štruktúru) preber z referencie, nepíš ich z pamäte. Pri rozpore medzi textom a referenciou platí referencia.
-3. Od artefaktu sa odchýľ len so zdôvodnením. Odchýlku napíš operátorovi jednou vetou a pravidlo neprepisuj.
-4. Postup overenia z playbooku urob pred odovzdaním a uveď výsledok.
-5. Nový artefakt zakladá agent, ktorý vec urobil, a schvaľuje ho operátor. Bez schválenia sa nezakladá.
+1. If one fits, read the whole `PLAYBOOK.md` and open the files in `reference/`.
+2. Take values (colors, sizes, fonts, structure) from the reference. Do not write them from memory. If text and reference disagree, the reference wins.
+3. Deviate from an artifact only with a reason. Tell the operator the deviation in one sentence and do not rewrite the rule.
+4. Do the verification steps from the playbook before you hand over, and report the result.
+5. The agent that did the work creates a new artifact, and the operator approves it. Without approval, nothing is created.

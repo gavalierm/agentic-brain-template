@@ -1,5 +1,5 @@
-// Test hooku bin/repeat_guard.mjs: prehrá vstupy a overí kód a stderr.
-// Stav hooku ide do dočasného priečinka (TMPDIR), nie do skutočného.
+// Test of the hook bin/repeat_guard.mjs: replays inputs and checks the exit code and stderr.
+// The hook state goes to a temporary folder (TMPDIR), not to the real one.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -28,17 +28,17 @@ function runRaw(input) {
 
 test.after(() => rmSync(SANDBOX, { recursive: true, force: true }));
 
-test("dva behy curl s rôznymi argumentmi prejdú, tretí skončí 2", () => {
+test("two curl runs with different arguments pass, the third exits with 2", () => {
   const s = newSession();
   assert.equal(run(s, "curl -s https://example.org/a").code, 0);
   assert.equal(run(s, "curl -s https://example.org/b").code, 0);
   const third = run(s, "curl -s https://example.org/c");
   assert.equal(third.code, 2);
-  assert.match(third.stderr, /Tretí ručný beh `curl` v relácii je mechanický krok/);
-  assert.match(third.stderr, /agentic-brain\/skills\/<meno>\/scripts\//);
+  assert.match(third.stderr, /The third manual run of `curl` in this session is a mechanical step/);
+  assert.match(third.stderr, /agentic-brain\/skills\/<name>\/scripts\//);
 });
 
-test("zamietnutý príkaz zopakovaný je znova zamietnutý", () => {
+test("a rejected command that is repeated is rejected again", () => {
   const s = newSession();
   run(s, "curl a");
   run(s, "curl b");
@@ -46,53 +46,53 @@ test("zamietnutý príkaz zopakovaný je znova zamietnutý", () => {
   assert.equal(run(s, "curl c").code, 2);
 });
 
-test("rovnaký príkaz zopakovaný sa nepočíta ako nový", () => {
+test("the same command repeated does not count as new", () => {
   const s = newSession();
   for (let i = 0; i < 5; i++) assert.equal(run(s, "curl -s https://example.org/a").code, 0);
 });
 
-test("program zo zoznamu allow prejde aj tretíkrát", () => {
+test("a program from the allow list passes a third time too", () => {
   const s = newSession();
   for (const a of ["status", "log", "diff", "branch", "fetch"]) assert.equal(run(s, `git ${a}`).code, 0);
 });
 
-test("príkaz zo skills/*/scripts/ a z agentic-brain/bin/ sa nepočíta", () => {
+test("a command from skills/*/scripts/ and from agentic-brain/bin/ does not count", () => {
   const s = newSession();
   for (const a of ["1", "2", "3", "4"]) {
-    assert.equal(run(s, `./agentic-brain/skills/web/scripts/stiahni.sh ${a}`).code, 0);
-    assert.equal(run(s, `"$CLAUDE_PROJECT_DIR/agentic-brain/bin/hladaj" ${a}`).code, 0);
+    assert.equal(run(s, `./agentic-brain/skills/web/scripts/download.sh ${a}`).code, 0);
+    assert.equal(run(s, `"$CLAUDE_PROJECT_DIR/agentic-brain/bin/search" ${a}`).code, 0);
   }
   assert.equal(run(s, "curl a").code, 0);
   assert.equal(run(s, "curl b").code, 0);
 });
 
-test("rúra a && sa delia na časti, každý program sa počíta", () => {
+test("a pipe and && split a command into segments, each program counts", () => {
   const s = newSession();
   assert.equal(run(s, "cd x && curl -s a | head -n 1").code, 0);
   assert.equal(run(s, "curl -s b | grep x").code, 0);
   assert.equal(run(s, "cd y && curl -s c").code, 2);
 });
 
-test("premenné a sudo pred programom sa odstránia", () => {
+test("variables and sudo before a program are stripped", () => {
   const s = newSession();
   assert.equal(run(s, "A=1 curl a").code, 0);
   assert.equal(run(s, "sudo curl b").code, 0);
-  assert.equal(run(s, "A=2 sudo -u nikto curl c").code, 2);
+  assert.equal(run(s, "A=2 sudo -u nobody curl c").code, 2);
 });
 
-test("rúra v úvodzovkách nerozdelí príkaz", () => {
+test("a pipe inside quotes does not split the command", () => {
   const s = newSession();
   assert.equal(run(s, 'curl "a|b"').code, 0);
   assert.equal(run(s, 'curl "c && d"').code, 0);
   assert.equal(run(s, "curl 'e;f'").code, 2);
 });
 
-test("presmerovanie 2>&1 nevytvorí zdanlivý program", () => {
+test("the redirect 2>&1 does not create a phantom program", () => {
   const s = newSession();
   for (let i = 0; i < 4; i++) assert.equal(run(s, `echo ${i} 2>&1`).code, 0);
 });
 
-test("relácie sú oddelené", () => {
+test("sessions are separate", () => {
   const a = newSession();
   const b = newSession();
   run(a, "curl 1");
@@ -101,19 +101,19 @@ test("relácie sú oddelené", () => {
   assert.equal(run(a, "curl 4").code, 2);
 });
 
-test("neplatný JSON prejde kódom 0", () => {
-  assert.equal(runRaw("toto nie je json").code, 0);
+test("invalid JSON passes with exit code 0", () => {
+  assert.equal(runRaw("this is not json").code, 0);
   assert.equal(runRaw("").code, 0);
   assert.equal(runRaw("[1,2").code, 0);
 });
 
-test("JSON bez príkazu prejde kódom 0", () => {
+test("JSON without a command passes with exit code 0", () => {
   assert.equal(runRaw(JSON.stringify({ session_id: "x" })).code, 0);
   assert.equal(runRaw(JSON.stringify({ session_id: "x", tool_input: { command: 5 } })).code, 0);
   assert.equal(runRaw(JSON.stringify({ tool_input: { command: "" } })).code, 0);
 });
 
-test("stav je v tmpdir pod menom relácie", () => {
+test("the state is in tmpdir under the session name", () => {
   const s = newSession();
   run(s, "curl a");
   assert.ok(readdirSync(SANDBOX).includes(`agentic-brain-repeat-${s}.json`));

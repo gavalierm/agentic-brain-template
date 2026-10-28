@@ -1,9 +1,9 @@
-# Pamäť
+# Memory
 
-Index pamäte projektu. Jeden riadok na súbor v tvare `- [Názov](subor.md): háčik`. Obsah je v `memory/<subor>.md`.
+The memory index of the project. One line per file, in the form `- [Title](file.md): hook`. The content is in `memory/<file>.md`.
 
-Každý riadok ukazuje na existujúci súbor a každý súbor v tomto priečinku je v indexe. Overí to `bin/check.sh`.
+Each line points to an existing file, and each file in this folder is in the index. `bin/check.sh` verifies this.
 
-Do pamäte patrí vedomosť o projekte, ktorá nie je rozhodnutie ani pravidlo. Rozhodnutie ide do `decisions/`, opakovaný postup do skillu.
+Memory holds knowledge about the project that is neither a decision nor a rule. A decision goes to `decisions/`, a repeated procedure goes to a skill.
 
-## Súbory
+## Files

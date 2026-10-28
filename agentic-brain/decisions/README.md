@@ -1,25 +1,25 @@
-# Rozhodnutia
+# Decisions
 
-Jedno rozhodnutie je jeden súbor `D0001-<slug>.md`. Číslo rastie o jedna, slug je krátky názov bez diakritiky.
+One decision is one file `D0001-<slug>.md`. The number grows by one. The slug is a short name in lowercase ASCII.
 
-Nové rozhodnutie založí `bin/rozhodni.sh "<názov>"`. Skript nájde najvyššie číslo a vytvorí ďalší súbor s hlavičkou.
+`bin/decide.sh "<title>"` creates a new decision. The script finds the highest number and creates the next file with a header.
 
-## Formát súboru
+## File format
 
-Súbor začína hlavičkou medzi dvoma riadkami `---`.
+The file starts with a header between two `---` lines.
 
-- `id`: číslo rozhodnutia, napríklad `D0001`.
-- `datum`: dátum zápisu v tvare `2026-01-31`.
-- `stav`: `navrhnuté`, `platí`, `zrušené` alebo `nahradené`.
-- `rozhodol`: kto rozhodnutie schválil (rola alebo meno).
+- `id`: the decision number, for example `D0001`.
+- `date`: the date of the entry, in the form `2026-01-31`.
+- `status`: `proposed`, `valid`, `canceled` or `replaced`.
+- `decided-by`: who approved the decision (a role or a name).
 
-Za hlavičkou je názov a dve časti.
+After the header come a title and two sections.
 
-- `Rozhodnutie`: čo platí, jednou až tromi vetami.
-- `Dôvod`: prečo, vrátane cesty, ktorú sme nevybrali.
+- `Decision`: what applies, in one to three sentences.
+- `Reason`: why, including the path we did not choose.
 
-## Zmena rozhodnutia
+## Changing a decision
 
-Staré rozhodnutie nemaž. Zmeň jeho `stav` na `nahradené` a v novom súbore uveď, ktoré nahrádza. Každé miesto, ktoré staré rozhodnutie ešte tvrdí, oprav v tom istom kroku.
+Do not delete an old decision. Change its `status` to `replaced` and name the one it replaces in the new file. Fix every place that still states the old decision in the same step.
 
-Rozhodnutie nie je poznámka z diskusie. Zapíš ho, až keď ho operátor potvrdil.
+A decision is not a remark from a discussion. Write it only after the operator has confirmed it.

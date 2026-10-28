@@ -1,25 +1,25 @@
-# Artefakty
+# Artifacts
 
-Artefakt je schválený vzor opakovanej práce. Operátor schválil konkrétny výsledok a jeho pravidlá sú zapísané, aby ich každý agent použil rovnako.
+An artifact is an approved pattern for repeated work. The operator approved a concrete result, and its rules are written down so every agent applies them the same way.
 
-## Štruktúra
+## Structure
 
 ```
-artifacts/<meno>/
+artifacts/<name>/
   PLAYBOOK.md
   reference/
 ```
 
-- `<meno>`: krátke a podľa veci, nie podľa agenta alebo projektu.
-- `PLAYBOOK.md`: čo artefakt pokrýva, pravidlá ako krátke vety s konkrétnymi hodnotami a dôvodom, čo nerobiť a ako výsledok overiť.
-- `reference/`: schválený výsledok ako šablóna, ktorú sa dá skopírovať, nie opis. Je to zdroj pravdy pre hodnoty. Priečinok nesmie byť prázdny.
+- `<name>`: short and named after the thing, not after the agent or project.
+- `PLAYBOOK.md`: what the artifact covers, the rules as short sentences with concrete values and reasons, what not to do, and how to verify the result.
+- `reference/`: the approved result as a template you can copy, not a description. It is the source of truth for values. The folder must not be empty.
 
-Pri rozpore medzi textom a referenciou platí referencia. Pri zmene referencie uprav aj `PLAYBOOK.md` a naopak.
+If text and reference disagree, the reference wins. When you change the reference, change `PLAYBOOK.md` too, and the other way round.
 
-## Rozsah
+## Scope
 
-Artefakt s dosahom mimo projektu nesie vo frontmattri `PLAYBOOK.md` riadok `scope: shared`. Do centrálneho repa ho povyšuje operátor.
+An artifact that reaches beyond the project carries the line `scope: shared` in the frontmatter of `PLAYBOOK.md`. The operator promotes it to the central repo.
 
-## Založenie
+## Creation
 
-Artefakt zakladá agent, ktorý vec urobil, a schvaľuje ho operátor. Bez schválenia sa nezakladá. Vzorový artefakt tu nie je, vzniká z prvej schválenej práce.
+The agent that did the work creates the artifact, and the operator approves it. Without approval, nothing is created. This repo has no sample artifact. The first one comes from the first approved piece of work.

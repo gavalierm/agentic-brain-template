@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Nasadí šablónu do existujúceho repa. Nič necommituje a nič neprepíše.
-# Použitie: adopt.sh <cieľový-repo>
+# Rolls the template out into an existing repo. It commits nothing and overwrites nothing.
+# Usage: adopt.sh <target-repo>
 set -u
 
 if [ "$#" -ne 1 ] || [ ! -d "$1" ]; then
-  echo "Použitie: adopt.sh <cieľový-repo>" >&2
+  echo "Usage: adopt.sh <target-repo>" >&2
   exit 2
 fi
 
@@ -13,18 +13,18 @@ SRC=$(cd "$SELF_DIR/.." && pwd -P)
 TARGET=$(cd "$1" && pwd -P)
 
 if [ ! -e "$TARGET/.git" ]; then
-  echo "$TARGET nie je git repo (chýba .git)" >&2
+  echo "$TARGET is not a git repo (.git is missing)" >&2
   exit 1
 fi
 if [ "$SRC" = "$TARGET/agentic-brain" ] || [ "$SRC" = "$TARGET" ]; then
-  echo "Zdroj a cieľ sú ten istý priečinok" >&2
+  echo "Source and target are the same folder" >&2
   exit 1
 fi
 
 DEST="$TARGET/agentic-brain"
 IMPORT="@agentic-brain/RULES.md"
 
-# 1. agentic-brain/ bez prepísania existujúcich súborov
+# 1. agentic-brain/ without overwriting existing files
 copied=0; skipped=0
 while IFS= read -r f; do
   r=${f#"$SRC"/}
@@ -33,7 +33,7 @@ while IFS= read -r f; do
     scratch/*) continue ;;
   esac
   if [ -e "$DEST/$r" ] || [ -L "$DEST/$r" ]; then
-    echo "Preskočené, už existuje: agentic-brain/$r"
+    echo "Skipped, already exists: agentic-brain/$r"
     skipped=$((skipped + 1))
   else
     mkdir -p "$(dirname "$DEST/$r")"
@@ -41,19 +41,19 @@ while IFS= read -r f; do
     copied=$((copied + 1))
   fi
 done < <(find "$SRC" -type f ! -path '*/.git/*' ! -name '.DS_Store' | sort)
-echo "Skopírované súbory: $copied, preskočené: $skipped"
+echo "Copied files: $copied, skipped: $skipped"
 
-# 2. symlinky skillov
+# 2. skill symlinks
 for d in "$DEST"/skills/*/; do
   [ -d "$d" ] || continue
   name=$(basename "$d")
   link="$TARGET/.claude/skills/$name"
   if [ -L "$link" ] || [ -e "$link" ]; then
-    echo "Preskočené, už existuje: .claude/skills/$name"
+    echo "Skipped, already exists: .claude/skills/$name"
   else
     mkdir -p "$TARGET/.claude/skills"
     ln -s "../../agentic-brain/skills/$name" "$link"
-    echo "Vytvorený symlink: .claude/skills/$name"
+    echo "Created symlink: .claude/skills/$name"
   fi
 done
 
@@ -78,11 +78,11 @@ if [ ! -e "$SETTINGS" ]; then
   }
 }
 EOT
-  echo "Vytvorený .claude/settings.json s hookom repeat_guard"
+  echo "Created .claude/settings.json with the repeat_guard hook"
 elif grep -q 'repeat_guard.mjs' "$SETTINGS"; then
-  echo "Hook repeat_guard už je v .claude/settings.json"
+  echo "The repeat_guard hook is already in .claude/settings.json"
 else
-  echo "Preskočené, .claude/settings.json už existuje. Pridaj do hooks.PreToolUse túto položku:"
+  echo "Skipped, .claude/settings.json already exists. Add this entry to hooks.PreToolUse:"
   cat <<'EOT'
       {
         "matcher": "Bash",
@@ -93,28 +93,28 @@ else
 EOT
 fi
 
-# 4. riadok importu v CLAUDE.md a AGENTS.md
-# CLAUDE.md dostane riadok prvý. Chýbajúci AGENTS.md vznikne ako jeho kópia,
-# aby oba súbory boli rovnaké (check.sh to vyžaduje).
+# 4. import line in CLAUDE.md and AGENTS.md
+# CLAUDE.md gets the line first. A missing AGENTS.md is created as a copy of it,
+# so both files are identical (check.sh requires this).
 both_existed=0
 [ -f "$TARGET/CLAUDE.md" ] && [ -f "$TARGET/AGENTS.md" ] && both_existed=1
 for f in CLAUDE.md AGENTS.md; do
   p="$TARGET/$f"
   if [ "$f" = AGENTS.md ] && [ ! -f "$p" ] && [ -f "$TARGET/CLAUDE.md" ]; then
     cp "$TARGET/CLAUDE.md" "$p"
-    echo "Založený AGENTS.md ako kópia CLAUDE.md"
+    echo "Created AGENTS.md as a copy of CLAUDE.md"
     continue
   fi
   if [ -f "$p" ] && grep -qxF "$IMPORT" "$p"; then
-    echo "Riadok importu už je v $f"
+    echo "Import line already in $f"
     continue
   fi
   if [ -s "$p" ] && [ -n "$(tail -c1 "$p")" ]; then printf '\n' >> "$p"; fi
   printf '%s\n' "$IMPORT" >> "$p"
-  echo "Pridaný riadok $IMPORT do $f"
+  echo "Added line $IMPORT to $f"
 done
 if [ "$both_existed" -eq 1 ] && ! cmp -s "$TARGET/CLAUDE.md" "$TARGET/AGENTS.md"; then
-  echo "Pozor: CLAUDE.md a AGENTS.md sa líšia. check.sh vyžaduje rovnaký obsah, zjednoť ich."
+  echo "Warning: CLAUDE.md and AGENTS.md differ. check.sh requires identical content, make them the same."
 fi
 
 # 5. .gitignore
@@ -123,11 +123,11 @@ for line in "agentic-brain/scratch/*" "!agentic-brain/scratch/.gitkeep"; do
   if [ -f "$GI" ] && grep -qxF "$line" "$GI"; then continue; fi
   if [ -s "$GI" ] && [ -n "$(tail -c1 "$GI")" ]; then printf '\n' >> "$GI"; fi
   printf '%s\n' "$line" >> "$GI"
-  echo "Pridaný riadok do .gitignore: $line"
+  echo "Added line to .gitignore: $line"
 done
 
 echo
-echo "Hotovo. Nič som necommitoval. Ďalej v cieľovom repe:"
+echo "Done. Nothing was committed. Next, in the target repo:"
 echo "  agentic-brain/bin/check.sh --install-hook"
 echo "  agentic-brain/bin/check.sh"
 exit 0
