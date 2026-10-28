@@ -36,6 +36,21 @@ expect_true() { # description command...
   if "$@"; then echo "ok   $d"; else echo "FAIL $d"; FAILS=$((FAILS + 1)); fi
 }
 
+# project layer: a folder above the repo (sibling of the work repo) with the skill pskill
+mkproj() { # creates $P and sets the line project: in the RULES.md of $W
+  P="$TMP/proj$N"
+  mkdir -p "$P/agentic-brain/skills/pskill/scripts" "$P/agentic-brain/artifacts"
+  : > "$P/agentic-brain/RULES.md"
+  printf -- '---\nname: pskill\ndescription: Use when the project skill is needed.\n---\n' > "$P/agentic-brain/skills/pskill/SKILL.md"
+  printf '#!/usr/bin/env bash\ntrue\n' > "$P/agentic-brain/skills/pskill/scripts/a.sh"
+  setproj "../proj$N/agentic-brain"
+}
+setproj() { # path [rules file]
+  local f=${2:-$W/agentic-brain/RULES.md}
+  { printf -- '---\nproject: %s\n---\n' "$1"; cat "$f"; } > "$TMP/rules.new"
+  cat "$TMP/rules.new" > "$f"
+}
+
 fresh; run_check
 expect "template passes" 0 "^check.sh: ok$"
 
@@ -148,6 +163,73 @@ rm -rf "$HOME/agentic-brain"
 N=$((N + 1)); W="$TMP/flat$N"; mkdir -p "$W"; cp -a "$SRC/agentic-brain/." "$W/"; git -C "$W" init -q
 OUT=$(cd "$W" && bash bin/check.sh 2>&1); RC=$?
 expect "global (the brain is the repo root) passes" 0 "^check.sh: ok$"
+
+# project layer
+fresh; mkproj; run_check
+expect "project skill gets a symlink" 0 "CREATED symlink .claude/skills/pskill to ../../../proj$N/agentic-brain/skills/pskill"
+expect_true "project symlink points to the project layer" test "$(readlink "$W/.claude/skills/pskill")" = "../../../proj$N/agentic-brain/skills/pskill"
+expect_true "project symlink resolves to the skill" test -f "$W/.claude/skills/pskill/SKILL.md"
+run_check
+expect "existing project symlink passes" 0 "^check.sh: ok$"
+
+fresh; mkproj; run_check; rm -rf "$P/agentic-brain/skills/pskill"; run_check
+expect "dangling project symlink is deleted" 0 "DELETED dangling symlink .claude/skills/pskill"
+
+fresh; mkproj; mkdir "$W/.claude/skills/pskill"; run_check
+expect "folder instead of a project symlink is an error" 1 "ERROR .claude/skills/pskill: not a symlink"
+
+fresh; mkproj; mkdir -p "$TMP/elsewhere"; ln -s "$TMP/elsewhere" "$W/.claude/skills/pskill"; run_check
+expect "project symlink to another folder is an error" 1 "ERROR .claude/skills/pskill: symlink points to"
+
+fresh; mkproj; mkdir "$P/agentic-brain/skills/error"; run_check
+expect "same skill in the repo and the project layer" 1 "ERROR agentic-brain/skills/error: skill error also exists in the project layer"
+
+fresh; mkproj; run_check
+mkdir -p "$HOME/agentic-brain/skills/pskill"; touch "$HOME/agentic-brain/RULES.md"; run_check
+expect "same skill in the project and the global layer" 1 "ERROR .*proj$N/agentic-brain/skills/pskill: skill pskill exists in both the project layer and the global layer"
+rm -rf "$HOME/agentic-brain"
+
+fresh; setproj "../nope/agentic-brain"; run_check
+expect "project line to a missing folder" 1 "ERROR agentic-brain/RULES.md: project layer ../nope/agentic-brain is missing"
+
+fresh; mkdir -p "$TMP/empty$N"; setproj "../empty$N"; run_check
+expect "project folder without RULES.md and skills" 1 "ERROR agentic-brain/RULES.md: project layer ../empty$N is missing"
+
+fresh; setproj "agentic-brain"; run_check
+expect "project layer that is the repo layer itself" 1 "ERROR agentic-brain/RULES.md: project layer agentic-brain is this folder"
+
+fresh; mkproj; run_check; N2=$N
+fresh; AGENTIC_BRAIN_PROJECT="$TMP/proj$N2/agentic-brain" run_check
+expect "AGENTIC_BRAIN_PROJECT sets the project layer" 0 "CREATED symlink .claude/skills/pskill to $TMP/proj$N2/agentic-brain/skills/pskill"
+fresh; AGENTIC_BRAIN_PROJECT="$TMP/nope" run_check
+expect "AGENTIC_BRAIN_PROJECT to a missing folder" 1 "ERROR AGENTIC_BRAIN_PROJECT: project layer $TMP/nope is missing"
+
+# scope shared with a project layer
+shared_skill() { # layer dir
+  mkdir -p "$1/skills/shared/scripts"
+  printf -- '---\nname: shared\ndescription: Use when a shared skill is needed.\nscope: shared\n---\n' > "$1/skills/shared/SKILL.md"
+  printf '#!/usr/bin/env bash\ntrue\n' > "$1/skills/shared/scripts/a.sh"
+}
+fresh; mkproj; shared_skill "$W/agentic-brain"; run_check
+expect "scope shared missing in the project layer is a warning" 0 "WARNING agentic-brain/skills/shared: scope is shared but it is not in the project layer"
+shared_artifact() { # layer dir
+  mkdir -p "$1/artifacts/shared/reference"
+  printf -- '---\nscope: shared\n---\n# Shared\n' > "$1/artifacts/shared/PLAYBOOK.md"
+  printf 'x\n' > "$1/artifacts/shared/reference/a.txt"
+}
+fresh; mkproj; shared_artifact "$W/agentic-brain"; run_check
+expect "shared artifact missing in the project layer is a warning" 0 "WARNING agentic-brain/artifacts/shared: scope is shared but it is not in the project layer"
+fresh; mkproj; shared_artifact "$W/agentic-brain"; mkdir -p "$P/agentic-brain/artifacts/shared"; run_check
+expect "shared artifact present in the project layer is no warning" 0 "^check.sh: ok$"
+fresh; mkproj; shared_artifact "$W/agentic-brain"; mkdir -p "$HOME/agentic-brain/artifacts/shared"; touch "$HOME/agentic-brain/RULES.md"; run_check
+expect "shared artifact present in the global layer is no warning" 0 "^check.sh: ok$"
+rm -rf "$HOME/agentic-brain"
+
+# the project layer line is ignored in the global brain (no repo layer)
+N=$((N + 1)); W="$TMP/flat$N"; mkdir -p "$W"; cp -a "$SRC/agentic-brain/." "$W/"; git -C "$W" init -q
+setproj "../nope" "$W/RULES.md"
+OUT=$(cd "$W" && bash bin/check.sh 2>&1); RC=$?
+expect "project line is ignored in the global brain" 0 "^check.sh: ok$"
 
 # hook
 fresh; (cd "$W" && bash agentic-brain/bin/check.sh --install-hook) > "$TMP/hook.out" 2>&1

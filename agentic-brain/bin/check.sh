@@ -8,6 +8,13 @@
 #
 # The variable AGENTIC_BRAIN_GLOBAL may point to the folder of the global brain
 # (with RULES.md and skills/). Without it, the script looks for ~/agentic-brain.
+#
+# The variable AGENTIC_BRAIN_PROJECT may point to the folder of the project layer
+# (with RULES.md and skills/), absolute or relative to the repo root. Without it,
+# the script reads the line "project: <path>" in the frontmatter of this repo's
+# agentic-brain/RULES.md (path relative to the repo root). Without both, the repo
+# has no project layer. The project layer is checked only inside a repo (not in
+# the global brain). Its skills get symlinks in .claude/skills.
 set -u
 
 SELF_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -24,7 +31,8 @@ if [ -z "$ROOT" ]; then
 fi
 ROOT=$(cd "$ROOT" && pwd -P)
 
-# project: the agentic-brain/ folder inside a project repo, global: the repo is the brain itself
+# project: the agentic-brain/ folder inside a code repo (the repo layer), global: the repo is the
+# brain itself. Not to be mixed up with the project layer, which sits above several repos.
 if [ "$BRAIN" = "$ROOT" ]; then MODE=global; else MODE=project; fi
 
 ERRS=0
@@ -54,6 +62,35 @@ global_brain() {
   d=$(cd "$d" && pwd -P)
   [ "$d" = "$BRAIN" ] && return 1
   printf '%s' "$d"
+}
+
+# folder of the project layer. PROJ_RAW is the path as written (for messages and for
+# the symlink targets), PROJ_DIR the resolved folder. Both are empty when the repo
+# has no project layer or when the configured folder is missing (one error is raised).
+PROJ_RAW=""; PROJ_DIR=""
+project_brain() {
+  local raw="" src="" abs
+  PROJ_RAW=""; PROJ_DIR=""
+  [ "$MODE" = project ] || return 1
+  if [ -n "${AGENTIC_BRAIN_PROJECT:-}" ]; then
+    raw=$AGENTIC_BRAIN_PROJECT; src="AGENTIC_BRAIN_PROJECT"
+  elif [ -f "$BRAIN/RULES.md" ]; then
+    raw=$(fm_get "$BRAIN/RULES.md" project | sed 's/[[:space:]]*$//'); src=$(rel "$BRAIN/RULES.md")
+  fi
+  [ -n "$raw" ] || return 1
+  raw=${raw#./}; raw=${raw%/}
+  case "$raw" in /*) abs=$raw ;; *) abs=$ROOT/$raw ;; esac
+  if [ ! -d "$abs" ] || { [ ! -f "$abs/RULES.md" ] && [ ! -d "$abs/skills" ]; }; then
+    err "$src" "project layer $raw is missing"
+    return 1
+  fi
+  abs=$(cd "$abs" && pwd -P)
+  if [ "$abs" = "$BRAIN" ]; then
+    err "$src" "project layer $raw is this folder"
+    return 1
+  fi
+  PROJ_RAW=$raw; PROJ_DIR=$abs
+  printf '%s' "$abs"
 }
 
 install_hook() {
@@ -109,50 +146,82 @@ check_skills() {
   done
 }
 
-# 3. symlinks in .claude/skills
+# makes sure $1 is a symlink to the skill folder $3 (the link target text is $2)
+sync_link() {
+  local link=$1 want=$2 real=$3 cur sdir
+  sdir=$(dirname "$link")
+  if [ -L "$link" ]; then
+    cur=$(readlink "$link")
+    [ "$cur" = "$want" ] && return 0
+    if [ -e "$link" ]; then
+      [ "$(cd "$link" 2>/dev/null && pwd -P)" = "$real" ] && return 0
+      err "$(rel "$link")" "symlink points to $cur, should point to $want"
+      return 0
+    fi
+    rm "$link"; info "DELETED dangling symlink $(rel "$link")"
+  elif [ -e "$link" ]; then
+    err "$(rel "$link")" "not a symlink, should be a symlink to $want"
+    return 0
+  fi
+  mkdir -p "$sdir" && ln -s "$want" "$link" && info "CREATED symlink $(rel "$link") to $want"
+}
+
+# 3. symlinks in .claude/skills: skills of this layer and of the project layer
 check_symlinks() {
   [ "$MODE" = project ] || return 0
-  local sdir="$ROOT/.claude/skills" d name link want cur p
+  local sdir="$ROOT/.claude/skills" d name base p
   for d in "$BRAIN"/skills/*/; do
     [ -d "$d" ] || continue
-    name=$(basename "$d"); link="$sdir/$name"; want="../../agentic-brain/skills/$name"
-    if [ -L "$link" ]; then
-      cur=$(readlink "$link")
-      [ "$cur" = "$want" ] && continue
-      if [ -e "$link" ]; then
-        [ "$(cd "$link" 2>/dev/null && pwd -P)" = "$BRAIN/skills/$name" ] && continue
-        err "$(rel "$link")" "symlink points to $cur, should point to $want"
-        continue
-      fi
-      rm "$link"; info "DELETED dangling symlink $(rel "$link")"
-    elif [ -e "$link" ]; then
-      err "$(rel "$link")" "not a symlink, should be a symlink to $want"
-      continue
-    fi
-    mkdir -p "$sdir" && ln -s "$want" "$link" && info "CREATED symlink $(rel "$link") to $want"
+    name=$(basename "$d")
+    sync_link "$sdir/$name" "../../agentic-brain/skills/$name" "$BRAIN/skills/$name"
   done
+  if [ -n "$PROJ_DIR" ]; then
+    case "$PROJ_RAW" in /*) base=$PROJ_RAW ;; *) base="../../$PROJ_RAW" ;; esac
+    for d in "$PROJ_DIR"/skills/*/; do
+      [ -d "$d" ] || continue
+      name=$(basename "$d")
+      [ -d "$BRAIN/skills/$name" ] && continue # a duplicate, check_duplicates reports it
+      sync_link "$sdir/$name" "$base/skills/$name" "$PROJ_DIR/skills/$name"
+    done
+  fi
   for p in "$sdir"/* "$sdir"/.[!.]*; do
     [ -L "$p" ] || [ -e "$p" ] || continue
     name=$(basename "$p")
     case "$name" in .gitkeep|.DS_Store) continue ;; esac
     [ -d "$BRAIN/skills/$name" ] && continue
+    [ -n "$PROJ_DIR" ] && [ -d "$PROJ_DIR/skills/$name" ] && continue
     if [ -L "$p" ] && [ ! -e "$p" ]; then
       rm "$p"; info "DELETED dangling symlink $(rel "$p")"
     else
-      err "$(rel "$p")" "entry in .claude/skills has no skill in agentic-brain/skills"
+      err "$(rel "$p")" "entry in .claude/skills has no skill in agentic-brain/skills or in the project layer"
     fi
   done
 }
 
-# 4. same skill name in the local and the global layer
+# 4. same skill name in two layers (this layer, the project layer, the global layer)
 check_duplicates() {
-  local g d name
-  g=$(global_brain) || return 0
+  local g="" p="" d name
+  g=$(global_brain) || g=""
+  p=$PROJ_DIR
   for d in "$BRAIN"/skills/*/; do
     [ -d "$d" ] || continue
     name=$(basename "$d")
-    [ -d "$g/skills/$name" ] && err "$(rel "${d%/}")" "skill $name also exists in the global layer ($g/skills/$name)"
+    if [ -n "$g" ] && [ -d "$g/skills/$name" ]; then
+      err "$(rel "${d%/}")" "skill $name also exists in the global layer ($g/skills/$name)"
+    fi
+    if [ -n "$p" ] && [ -d "$p/skills/$name" ]; then
+      err "$(rel "${d%/}")" "skill $name also exists in the project layer ($p/skills/$name)"
+    fi
   done
+  if [ -n "$g" ] && [ -n "$p" ]; then
+    for d in "$p"/skills/*/; do
+      [ -d "$d" ] || continue
+      name=$(basename "$d")
+      if [ -d "$g/skills/$name" ]; then
+        err "$PROJ_RAW/skills/$name" "skill $name exists in both the project layer and the global layer ($g/skills/$name)"
+      fi
+    done
+  fi
 }
 
 # 5. artifacts
@@ -233,22 +302,28 @@ check_md_links() {
   done < <(find "$BRAIN" -name '*.md' ! -path "$BRAIN/scratch/*" ! -path '*/.git/*' | sort)
 }
 
-# 10. items with scope: shared that are not in the global layer
+# 10. items with scope: shared that are in neither the global nor the project layer
 check_shared() {
-  local g kind file d name
-  g=$(global_brain) || return 0
+  local g="" p="" kind file d name layers=""
+  g=$(global_brain) || g=""
+  p=$PROJ_DIR
+  [ -n "$g" ] || [ -n "$p" ] || return 0
+  [ -n "$g" ] && layers="the global layer ($g)"
+  [ -n "$p" ] && layers="${layers:+$layers or }the project layer ($p)"
   for kind in skills:SKILL.md artifacts:PLAYBOOK.md; do
     file=${kind#*:}; kind=${kind%%:*}
     for d in "$BRAIN/$kind"/*/; do
       [ -f "$d$file" ] || continue
       name=$(basename "$d")
-      if [ "$(fm_get "$d$file" scope)" = shared ] && [ ! -d "$g/$kind/$name" ]; then
-        warn "$(rel "${d%/}")" "scope is shared but it is not in the global layer ($g/$kind), name it in the report to the operator"
-      fi
+      [ "$(fm_get "$d$file" scope)" = shared ] || continue
+      [ -n "$g" ] && [ -d "$g/$kind/$name" ] && continue
+      [ -n "$p" ] && [ -d "$p/$kind/$name" ] && continue
+      warn "$(rel "${d%/}")" "scope is shared but it is not in $layers, name it in the report to the operator"
     done
   done
 }
 
+project_brain >/dev/null
 check_entry_files
 check_skills
 check_symlinks

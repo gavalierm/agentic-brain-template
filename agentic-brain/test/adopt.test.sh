@@ -68,6 +68,63 @@ OUT=$(bash "$SRC/agentic-brain/bin/adopt.sh" "$T4" 2>&1)
 check "adopt (different files): output reports the difference" has "$OUT" "differ"
 check "adopt (different files): import in both" test "$(grep -lxF '@agentic-brain/RULES.md' "$T4/CLAUDE.md" "$T4/AGENTS.md" | wc -l)" -eq 2
 
+# without --project nothing about the project layer appears
+check "adopt (no --project): no project line in RULES.md" test "$(grep -c '^project:' "$T2/agentic-brain/RULES.md")" -eq 0
+check "adopt (no --project): RULES.md has no frontmatter" test "$(head -n 1 "$T2/agentic-brain/RULES.md")" != "---"
+check "adopt (no --project): only the template skills are linked" test "$(ls "$T2/.claude/skills" | tr '\n' ' ')" = "error task-end "
+
+# --project: a project layer above the repo
+PL="$TMP/pp/proj/agentic-brain"
+mkdir -p "$PL/skills/pskill/scripts" "$TMP/pp/repo"
+: > "$PL/RULES.md"
+printf -- '---\nname: pskill\ndescription: Use when the project skill is needed.\n---\n' > "$PL/skills/pskill/SKILL.md"
+printf '#!/usr/bin/env bash\ntrue\n' > "$PL/skills/pskill/scripts/a.sh"
+T5="$TMP/pp/repo"; git -C "$T5" init -q
+OUT=$(bash "$SRC/agentic-brain/bin/adopt.sh" --project ../proj/agentic-brain "$T5" 2>&1); RC=$?
+check "adopt --project: exit code 0" test "$RC" -eq 0
+check "adopt --project: frontmatter starts the RULES.md" test "$(head -n 3 "$T5/agentic-brain/RULES.md")" = "$(printf -- '---\nproject: ../proj/agentic-brain\n---')"
+check "adopt --project: the rules text follows the frontmatter" test "$(sed -n '4p' "$T5/agentic-brain/RULES.md")" = "# Project rules"
+check "adopt --project: output reports the line" has "$OUT" "Added line project: ../proj/agentic-brain"
+check "adopt --project: symlink to the project skill" test "$(readlink "$T5/.claude/skills/pskill")" = "../../../proj/agentic-brain/skills/pskill"
+check "adopt --project: the project symlink resolves" test -f "$T5/.claude/skills/pskill/SKILL.md"
+check "adopt --project: template skill symlink stays" test "$(readlink "$T5/.claude/skills/error")" = "../../agentic-brain/skills/error"
+check "adopt --project: check.sh passes in the target" bash "$T5/agentic-brain/bin/check.sh"
+
+A=$(cd "$T5" && find . -path ./.git -prune -o -type f -print0 | sort -z | xargs -0 cat | cksum)
+OUT=$(bash "$SRC/agentic-brain/bin/adopt.sh" --project ../proj/agentic-brain "$T5" 2>&1); RC=$?
+B=$(cd "$T5" && find . -path ./.git -prune -o -type f -print0 | sort -z | xargs -0 cat | cksum)
+check "adopt --project: second run changes nothing" test "$A" = "$B"
+check "adopt --project: second run exit code 0" test "$RC" -eq 0
+check "adopt --project: the line is written once" test "$(grep -c '^project:' "$T5/agentic-brain/RULES.md")" -eq 1
+
+mkdir -p "$TMP/pp/other/agentic-brain/skills/oskill/scripts"
+printf 'x\n' > "$TMP/pp/other/agentic-brain/skills/oskill/scripts/a.sh"
+OUT=$(bash "$SRC/agentic-brain/bin/adopt.sh" --project ../other/agentic-brain "$T5" 2>&1); RC=$?
+check "adopt --project: a different value is reported" has "$OUT" "already has project: ../proj/agentic-brain"
+check "adopt --project: a different value is not written" test "$(grep -c '^project:' "$T5/agentic-brain/RULES.md")" -eq 1 -a "$(sed -n '2p' "$T5/agentic-brain/RULES.md")" = "project: ../proj/agentic-brain"
+check "adopt --project: a different value creates no symlinks" test ! -e "$T5/.claude/skills/oskill"
+
+# existing RULES.md with a frontmatter but without the project line, and an existing foreign skill entry
+T6="$TMP/pp/repo6"; mkdir -p "$T6/agentic-brain" "$T6/.claude/skills/pskill"; git -C "$T6" init -q
+printf -- '---\nupstream: https://example.org/x.git\n---\nown rules\n' > "$T6/agentic-brain/RULES.md"
+OUT=$(bash "$SRC/agentic-brain/bin/adopt.sh" --project ../proj/agentic-brain "$T6" 2>&1); RC=$?
+check "adopt --project (frontmatter): exit code 0" test "$RC" -eq 0
+check "adopt --project (frontmatter): the line goes into the existing frontmatter" test "$(head -n 4 "$T6/agentic-brain/RULES.md")" = "$(printf -- '---\nproject: ../proj/agentic-brain\nupstream: https://example.org/x.git\n---')"
+check "adopt --project (frontmatter): the body stays" grep -qxF 'own rules' "$T6/agentic-brain/RULES.md"
+check "adopt --project (frontmatter): an existing entry is skipped" has "$OUT" "Skipped, already exists: .claude/skills/pskill"
+check "adopt --project (frontmatter): the existing entry stays a folder" test -d "$T6/.claude/skills/pskill" -a ! -L "$T6/.claude/skills/pskill"
+
+# a missing project layer is an error and changes nothing
+T7="$TMP/pp/repo7"; mkdir -p "$T7"; git -C "$T7" init -q
+OUT=$(bash "$SRC/agentic-brain/bin/adopt.sh" --project ../nope/agentic-brain "$T7" 2>&1); RC=$?
+check "adopt --project (missing path): exit code 1" test "$RC" -eq 1
+check "adopt --project (missing path): message" has "$OUT" "project layer ../nope/agentic-brain is missing"
+check "adopt --project (missing path): nothing was copied" test ! -e "$T7/agentic-brain"
+bash "$SRC/agentic-brain/bin/adopt.sh" --project /abs/path "$T7" > /dev/null 2>&1; RC=$?
+check "adopt --project (absolute path): exit code 1" test "$RC" -eq 1
+bash "$SRC/agentic-brain/bin/adopt.sh" --project > /dev/null 2>&1; RC=$?
+check "adopt --project (no value): usage error 2" test "$RC" -eq 2
+
 # target that is not a git repo
 T3="$TMP/r3"; mkdir -p "$T3"
 bash "$SRC/agentic-brain/bin/adopt.sh" "$T3" > /dev/null 2>&1; RC=$?

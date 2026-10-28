@@ -1,12 +1,24 @@
 #!/usr/bin/env bash
 # Rolls the template out into an existing repo. It commits nothing and overwrites nothing.
-# Usage: adopt.sh <target-repo>
+# Usage: adopt.sh [--project <path>] <target-repo>
+#
+#   --project <path>  the project layer above the repo: a folder with RULES.md and skills/,
+#                     path relative to the root of the target repo (for example
+#                     ../project/agentic-brain). The script writes "project: <path>" into
+#                     the frontmatter of the target's agentic-brain/RULES.md and creates the
+#                     symlinks .claude/skills/<name> to the skills of the project layer.
 set -u
 
-if [ "$#" -ne 1 ] || [ ! -d "$1" ]; then
-  echo "Usage: adopt.sh <target-repo>" >&2
-  exit 2
-fi
+usage() { echo "Usage: adopt.sh [--project <path>] <target-repo>" >&2; exit 2; }
+
+PROJECT=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --project) [ "$#" -ge 2 ] || usage; PROJECT=$2; shift 2 ;;
+    *) break ;;
+  esac
+done
+if [ "$#" -ne 1 ] || [ ! -d "$1" ]; then usage; fi
 
 SELF_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 SRC=$(cd "$SELF_DIR/.." && pwd -P)
@@ -23,6 +35,18 @@ fi
 
 DEST="$TARGET/agentic-brain"
 IMPORT="@agentic-brain/RULES.md"
+
+# the project layer is checked before anything is changed
+if [ -n "$PROJECT" ]; then
+  PROJECT=${PROJECT#./}; PROJECT=${PROJECT%/}
+  case "$PROJECT" in
+    /*) echo "--project must be a path relative to the root of the target repo: $PROJECT" >&2; exit 1 ;;
+  esac
+  if [ ! -d "$TARGET/$PROJECT" ] || { [ ! -f "$TARGET/$PROJECT/RULES.md" ] && [ ! -d "$TARGET/$PROJECT/skills" ]; }; then
+    echo "project layer $PROJECT is missing (expected a folder with RULES.md or skills/ relative to $TARGET)" >&2
+    exit 1
+  fi
+fi
 
 # 1. agentic-brain/ without overwriting existing files
 copied=0; skipped=0
@@ -56,6 +80,45 @@ for d in "$DEST"/skills/*/; do
     echo "Created symlink: .claude/skills/$name"
   fi
 done
+
+# 2b. project layer: the line "project: <path>" in the frontmatter of RULES.md and symlinks to its skills
+if [ -n "$PROJECT" ]; then
+  RULES="$DEST/RULES.md"
+  cur=""
+  if [ "$(head -n 1 "$RULES" | tr -d '\r')" = "---" ]; then
+    cur=$(tr -d '\r' < "$RULES" | awk 'NR == 1 { next } $0 == "---" { exit } { print }' | sed -n 's/^project:[[:space:]]*//p' | head -n 1 | sed 's/[[:space:]]*$//')
+  fi
+  proj_ok=1
+  if [ "$cur" = "$PROJECT" ]; then
+    echo "Line project: $PROJECT already in agentic-brain/RULES.md"
+  elif [ -n "$cur" ]; then
+    echo "Skipped, agentic-brain/RULES.md already has project: $cur (not changed to $PROJECT), no project symlinks created"
+    proj_ok=0
+  else
+    tmp=$(mktemp)
+    if [ "$(head -n 1 "$RULES" | tr -d '\r')" = "---" ]; then
+      { head -n 1 "$RULES"; printf 'project: %s\n' "$PROJECT"; tail -n +2 "$RULES"; } > "$tmp"
+    else
+      { printf -- '---\nproject: %s\n---\n' "$PROJECT"; cat "$RULES"; } > "$tmp"
+    fi
+    cat "$tmp" > "$RULES"; rm -f "$tmp"
+    echo "Added line project: $PROJECT to the frontmatter of agentic-brain/RULES.md"
+  fi
+  if [ "$proj_ok" = 1 ]; then
+    for d in "$TARGET/$PROJECT"/skills/*/; do
+      [ -d "$d" ] || continue
+      name=$(basename "$d")
+      link="$TARGET/.claude/skills/$name"
+      if [ -L "$link" ] || [ -e "$link" ]; then
+        echo "Skipped, already exists: .claude/skills/$name"
+      else
+        mkdir -p "$TARGET/.claude/skills"
+        ln -s "../../$PROJECT/skills/$name" "$link"
+        echo "Created symlink: .claude/skills/$name (project layer)"
+      fi
+    done
+  fi
+fi
 
 # 3. .claude/settings.json
 SETTINGS="$TARGET/.claude/settings.json"
