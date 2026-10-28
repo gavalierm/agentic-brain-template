@@ -27,8 +27,10 @@ Potom v cieľovom repe spusti `agentic-brain/bin/check.sh --install-hook` a `age
 
 ## Globálna vrstva
 
+Globálne repo je obsah priečinka `agentic-brain/` v koreni, bez obalu projektu. Založ ho z tohto priečinka. Klon celej šablóny tiež funguje, import potom ukazuje na `~/agentic-brain/agentic-brain/RULES.md`.
+
 1. Naklonuj repo do `~/agentic-brain`.
-2. Spusti `agentic-brain/bin/install.sh --global` z klonu.
+2. Spusti `bin/install.sh --global` z klonu (pri klone celej šablóny `agentic-brain/bin/install.sh --global`).
 
 Skript pridá do `~/.claude/CLAUDE.md` riadok s importom `RULES.md` a vytvorí symlinky `~/.claude/skills/<meno>` do klonu. Existujúci cudzí symlink alebo priečinok nechá a vypíše ho. Druhý beh nič nezmení.
 

@@ -33,7 +33,8 @@ OUT=$(bash "$SRC/agentic-brain/bin/adopt.sh" "$T1" 2>&1); RC=$?
 check "adopt: kód 0" test "$RC" -eq 0
 check "adopt: pôvodný CLAUDE.md ostal na začiatku" test "$(head -n 2 "$T1/CLAUDE.md")" = "$(printf '# Môj projekt\nPravidlo A')"
 check "adopt: riadok importu pribudol raz" test "$(grep -cxF '@agentic-brain/RULES.md' "$T1/CLAUDE.md")" -eq 1
-check "adopt: AGENTS.md založený s importom" grep -qxF '@agentic-brain/RULES.md' "$T1/AGENTS.md"
+check "adopt: AGENTS.md založený ako kópia CLAUDE.md" cmp -s "$T1/CLAUDE.md" "$T1/AGENTS.md"
+check "adopt: výpis hlási kópiu" has "$OUT" "Založený AGENTS.md ako kópia CLAUDE.md"
 check "adopt: existujúci RULES.md neprepísaný" test "$(cat "$T1/agentic-brain/RULES.md")" = "vlastné pravidlá"
 check "adopt: výpis hlási preskočený RULES.md" has "$OUT" "Preskočené, už existuje: agentic-brain/RULES.md"
 check "adopt: skill skopírovaný" test -f "$T1/agentic-brain/skills/chyba/scripts/chyba.sh"
@@ -44,7 +45,8 @@ check "adopt: .gitignore ostal s pôvodným riadkom" grep -qxF 'node_modules' "$
 check "adopt: .gitignore má riadok pre scratch" grep -qxF 'agentic-brain/scratch/*' "$T1/.gitignore"
 check "adopt: scratch/.gitkeep skopírovaný" test -f "$T1/agentic-brain/scratch/.gitkeep"
 check "adopt: nič necommitoval" test "$(git -C "$T1" rev-list --all --count)" = "$BEFORE"
-check "adopt: výpis hlási rozdielne CLAUDE.md a AGENTS.md" has "$OUT" "sa líšia"
+check "adopt: bez varovania o rozdiele, súbory sú rovnaké" test "$(printf '%s' "$OUT" | grep -c 'sa líšia')" -eq 0
+check "adopt: check.sh v cieli prejde" bash "$T1/agentic-brain/bin/check.sh"
 
 A=$(cd "$T1" && find . -path ./.git -prune -o -type f -print0 | sort -z | xargs -0 cat | cksum)
 bash "$SRC/agentic-brain/bin/adopt.sh" "$T1" > /dev/null 2>&1
@@ -58,6 +60,13 @@ check "adopt (prázdne repo): kód 0" test "$RC" -eq 0
 check "adopt (prázdne repo): CLAUDE.md a AGENTS.md rovnaké" cmp -s "$T2/CLAUDE.md" "$T2/AGENTS.md"
 check "adopt (prázdne repo): settings.json rovnaký ako v šablóne" cmp -s "$T2/.claude/settings.json" "$SRC/.claude/settings.json"
 check "adopt (prázdne repo): check.sh prejde" bash "$T2/agentic-brain/bin/check.sh"
+
+# repo, kde CLAUDE.md a AGENTS.md už existujú a líšia sa
+T4="$TMP/r4"; mkdir -p "$T4"; git -C "$T4" init -q
+printf 'A\n' > "$T4/CLAUDE.md"; printf 'B\n' > "$T4/AGENTS.md"
+OUT=$(bash "$SRC/agentic-brain/bin/adopt.sh" "$T4" 2>&1)
+check "adopt (rôzne súbory): výpis hlási rozdiel" has "$OUT" "sa líšia"
+check "adopt (rôzne súbory): import v oboch" test "$(grep -lxF '@agentic-brain/RULES.md' "$T4/CLAUDE.md" "$T4/AGENTS.md" | wc -l)" -eq 2
 
 # cieľ, ktorý nie je git repo
 T3="$TMP/r3"; mkdir -p "$T3"

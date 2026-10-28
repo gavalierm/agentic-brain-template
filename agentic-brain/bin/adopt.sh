@@ -94,8 +94,17 @@ EOT
 fi
 
 # 4. riadok importu v CLAUDE.md a AGENTS.md
+# CLAUDE.md dostane riadok prvý. Chýbajúci AGENTS.md vznikne ako jeho kópia,
+# aby oba súbory boli rovnaké (check.sh to vyžaduje).
+both_existed=0
+[ -f "$TARGET/CLAUDE.md" ] && [ -f "$TARGET/AGENTS.md" ] && both_existed=1
 for f in CLAUDE.md AGENTS.md; do
   p="$TARGET/$f"
+  if [ "$f" = AGENTS.md ] && [ ! -f "$p" ] && [ -f "$TARGET/CLAUDE.md" ]; then
+    cp "$TARGET/CLAUDE.md" "$p"
+    echo "Založený AGENTS.md ako kópia CLAUDE.md"
+    continue
+  fi
   if [ -f "$p" ] && grep -qxF "$IMPORT" "$p"; then
     echo "Riadok importu už je v $f"
     continue
@@ -104,7 +113,7 @@ for f in CLAUDE.md AGENTS.md; do
   printf '%s\n' "$IMPORT" >> "$p"
   echo "Pridaný riadok $IMPORT do $f"
 done
-if ! cmp -s "$TARGET/CLAUDE.md" "$TARGET/AGENTS.md"; then
+if [ "$both_existed" -eq 1 ] && ! cmp -s "$TARGET/CLAUDE.md" "$TARGET/AGENTS.md"; then
   echo "Pozor: CLAUDE.md a AGENTS.md sa líšia. check.sh vyžaduje rovnaký obsah, zjednoť ich."
 fi
 
