@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Git hook pre-commit: spustí agentic-brain/bin/check.sh, pri chybe commit odmietne.
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+CHECK="$ROOT/agentic-brain/bin/check.sh"
+if [ ! -f "$CHECK" ]; then
+  echo "pre-commit: chýba $CHECK, kontrolu preskakujem" >&2
+  exit 0
+fi
+if ! bash "$CHECK"; then
+  echo "pre-commit: commit odmietnutý, oprav chyby vyššie (agentic-brain/bin/check.sh)" >&2
+  exit 1
+fi
+exit 0
