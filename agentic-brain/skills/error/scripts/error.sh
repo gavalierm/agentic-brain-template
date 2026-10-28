@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Pridá riadok do errors/REGISTER.md a vypíše, koľký je výskyt triedy.
-# Použitie: chyba.sh "<trieda>" "<opis>"
+# Adds a row to errors/REGISTER.md and prints which occurrence of the class it is.
+# Usage: error.sh "<class>" "<description>"
 set -u
 
 if [ "$#" -ne 2 ] || [ -z "${1// /}" ] || [ -z "${2// /}" ]; then
-  echo "Použitie: chyba.sh \"<trieda>\" \"<opis>\"" >&2
+  echo "Usage: error.sh \"<class>\" \"<description>\"" >&2
   exit 2
 fi
 
@@ -13,21 +13,21 @@ BRAIN=$(cd "$SELF_DIR/../../.." && pwd)
 REG="$BRAIN/errors/REGISTER.md"
 
 clean() { printf '%s' "$1" | tr '\r\n\t' '   ' | tr '|' '/' | sed 's/^ *//; s/ *$//'; }
-TRIEDA=$(clean "$1")
-OPIS=$(clean "$2")
+CLASS=$(clean "$1")
+DESC=$(clean "$2")
 
 if [ ! -f "$REG" ]; then
-  echo "Chýba register $REG" >&2
+  echo "Register $REG is missing" >&2
   exit 1
 fi
 
-# súbor musí končiť novým riadkom
+# the file must end with a newline
 if [ -s "$REG" ] && [ -n "$(tail -c1 "$REG")" ]; then
   printf '\n' >> "$REG"
 fi
-printf '| %s | %s | %s |  |  |\n' "$(date +%F)" "$TRIEDA" "$OPIS" >> "$REG"
+printf '| %s | %s | %s |  |  |\n' "$(date +%F)" "$CLASS" "$DESC" >> "$REG"
 
-awk -F'|' -v t="$TRIEDA" '
+awk -F'|' -v t="$CLASS" '
   function trim(s) { gsub(/^[ \t\r]+|[ \t\r]+$/, "", s); return s }
   /^\|/ {
     if (trim($2) !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/) next
@@ -36,7 +36,7 @@ awk -F'|' -v t="$TRIEDA" '
     if (trim($5) == "") open++
   }
   END {
-    printf "Výskyt triedy \"%s\": %d\n", t, all
-    printf "Z toho bez opravy: %d\n", open
-    if (open >= 2) print "Dva výskyty bez opravy zlyhajú v bin/check.sh. Oprav príčinu a vyplň stĺpce oprava a test."
+    printf "Occurrences of class \"%s\": %d\n", t, all
+    printf "Of those without a fix: %d\n", open
+    if (open >= 2) print "Two occurrences without a fix fail in bin/check.sh. Fix the cause and fill in the fix and test columns."
   }' "$REG"

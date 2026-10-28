@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Test bin/check.sh: šablóna prejde, každé pravidlo pokazené zlyhá so správnou hláškou.
-# Beží v dočasnom priečinku s vlastným HOME, na skutočný HOME nesiaha.
+# Test of bin/check.sh: the template passes, every broken rule fails with the right message.
+# It runs in a temporary folder with its own HOME and never touches the real HOME.
 set -u
 
 HERE=$(cd "$(dirname "$0")" && pwd -P)
@@ -22,153 +22,153 @@ fresh() {
   git -C "$W" init -q
 }
 run_check() { OUT=$(cd "${1:-$W}" && bash agentic-brain/bin/check.sh 2>&1); RC=$?; }
-expect() { # popis kód regex
+expect() { # description code regex
   if [ "$RC" -eq "$2" ] && printf '%s' "$OUT" | grep -qE "$3"; then
     echo "ok   $1"
   else
-    echo "FAIL $1 (kód $RC, čakal som $2 a /$3/)"
+    echo "FAIL $1 (code $RC, expected $2 and /$3/)"
     printf '%s\n' "$OUT" | sed 's/^/     /'
     FAILS=$((FAILS + 1))
   fi
 }
-expect_true() { # popis príkaz...
+expect_true() { # description command...
   local d=$1; shift
   if "$@"; then echo "ok   $d"; else echo "FAIL $d"; FAILS=$((FAILS + 1)); fi
 }
 
 fresh; run_check
-expect "šablóna prejde" 0 "v poriadku"
+expect "template passes" 0 "^check.sh: ok$"
 
 fresh; (cd "$W/agentic-brain/memory" && bash ../bin/check.sh >/dev/null 2>&1); RC=$?; OUT=x
-expect "beží aj z podpriečinka" 0 x
+expect "runs from a subfolder too" 0 x
 
-# symlinky
-fresh; rm "$W/.claude/skills/chyba"; run_check
-expect "chýbajúci symlink sa vytvorí" 0 "VYTVORENÝ symlink .claude/skills/chyba"
-expect_true "vytvorený symlink ukazuje na skill" test "$(readlink "$W/.claude/skills/chyba")" = "../../agentic-brain/skills/chyba"
+# symlinks
+fresh; rm "$W/.claude/skills/error"; run_check
+expect "missing symlink is created" 0 "CREATED symlink .claude/skills/error"
+expect_true "created symlink points to the skill" test "$(readlink "$W/.claude/skills/error")" = "../../agentic-brain/skills/error"
 run_check
-expect "druhý beh nič nevypíše o symlinkoch" 0 "^check.sh: v poriadku$"
+expect "second run prints nothing about symlinks" 0 "^check.sh: ok$"
 
-fresh; ln -s ../../agentic-brain/skills/stary "$W/.claude/skills/stary"; run_check
-expect "visiaci symlink sa zmaže" 0 "ZMAZANÝ visiaci symlink .claude/skills/stary"
-expect_true "visiaci symlink je preč" test ! -L "$W/.claude/skills/stary"
+fresh; ln -s ../../agentic-brain/skills/old "$W/.claude/skills/old"; run_check
+expect "dangling symlink is deleted" 0 "DELETED dangling symlink .claude/skills/old"
+expect_true "dangling symlink is gone" test ! -L "$W/.claude/skills/old"
 
-fresh; mkdir "$W/.claude/skills/cudzi"; run_check
-expect "iná položka bez skillu je chyba" 1 "CHYBA .claude/skills/cudzi"
+fresh; mkdir "$W/.claude/skills/foreign"; run_check
+expect "other entry without a skill is an error" 1 "ERROR .claude/skills/foreign"
 
-fresh; rm "$W/.claude/skills/chyba"; mkdir "$W/.claude/skills/chyba"; run_check
-expect "adresár namiesto symlinku je chyba" 1 "CHYBA .claude/skills/chyba: nie je symlink"
+fresh; rm "$W/.claude/skills/error"; mkdir "$W/.claude/skills/error"; run_check
+expect "folder instead of a symlink is an error" 1 "ERROR .claude/skills/error: not a symlink"
 
-fresh; mkdir -p "$W/agentic-brain/skills/novy/scripts"
-printf -- '---\nname: novy\ndescription: Použi, keď treba nový skill.\n---\n' > "$W/agentic-brain/skills/novy/SKILL.md"
-printf '#!/usr/bin/env bash\ntrue\n' > "$W/agentic-brain/skills/novy/scripts/a.sh"
+fresh; mkdir -p "$W/agentic-brain/skills/fresh/scripts"
+printf -- '---\nname: fresh\ndescription: Use when a new skill is needed.\n---\n' > "$W/agentic-brain/skills/fresh/SKILL.md"
+printf '#!/usr/bin/env bash\ntrue\n' > "$W/agentic-brain/skills/fresh/scripts/a.sh"
 run_check
-expect "nový skill dostane symlink" 0 "VYTVORENÝ symlink .claude/skills/novy"
+expect "new skill gets a symlink" 0 "CREATED symlink .claude/skills/fresh"
 
-# skilly
-fresh; rm -rf "$W/agentic-brain/skills/chyba/scripts"; run_check
-expect "skill bez scripts" 1 "CHYBA agentic-brain/skills/chyba/scripts: chýba scripts/"
+# skills
+fresh; rm -rf "$W/agentic-brain/skills/error/scripts"; run_check
+expect "skill without scripts" 1 "ERROR agentic-brain/skills/error/scripts: scripts/ is missing"
 
-fresh; rm "$W/agentic-brain/skills/chyba/scripts/chyba.sh"; touch "$W/agentic-brain/skills/chyba/scripts/.gitkeep"; run_check
-expect "skill s prázdnym scripts" 1 "CHYBA agentic-brain/skills/chyba/scripts"
+fresh; rm "$W/agentic-brain/skills/error/scripts/error.sh"; touch "$W/agentic-brain/skills/error/scripts/.gitkeep"; run_check
+expect "skill with empty scripts" 1 "ERROR agentic-brain/skills/error/scripts"
 
-fresh; printf -- '---\nname: chyba\n---\n' > "$W/agentic-brain/skills/chyba/SKILL.md"; run_check
-expect "skill bez description" 1 "CHYBA agentic-brain/skills/chyba/SKILL.md: frontmatter nemá description"
+fresh; printf -- '---\nname: error\n---\n' > "$W/agentic-brain/skills/error/SKILL.md"; run_check
+expect "skill without description" 1 "ERROR agentic-brain/skills/error/SKILL.md: frontmatter has no description"
 
-fresh; rm "$W/agentic-brain/skills/chyba/SKILL.md"; run_check
-expect "skill bez SKILL.md" 1 "chýba SKILL.md"
+fresh; rm "$W/agentic-brain/skills/error/SKILL.md"; run_check
+expect "skill without SKILL.md" 1 "SKILL.md is missing"
 
-# register chýb
-fresh; bash "$W/agentic-brain/skills/chyba/scripts/chyba.sh" trieda1 "prvý výskyt" > "$TMP/c1.out"; run_check
-expect "jedna otvorená chyba je len upozornenie" 0 "UPOZORNENIE .*trieda trieda1 je otvorená"
-bash "$W/agentic-brain/skills/chyba/scripts/chyba.sh" trieda1 "druhý výskyt" > "$TMP/c2.out"; run_check
-expect "duplicitná chyba bez opravy" 1 "CHYBA agentic-brain/errors/REGISTER.md: trieda trieda1 má 2 riadkov bez opravy"
-expect_true "chyba.sh vypíše výskyt triedy" grep -q 'Výskyt triedy "trieda1": 2' "$TMP/c2.out"
+# error register
+fresh; bash "$W/agentic-brain/skills/error/scripts/error.sh" class1 "first occurrence" > "$TMP/c1.out"; run_check
+expect "one open error is only a warning" 0 "WARNING .*class class1 is open"
+bash "$W/agentic-brain/skills/error/scripts/error.sh" class1 "second occurrence" > "$TMP/c2.out"; run_check
+expect "duplicate error without a fix" 1 "ERROR agentic-brain/errors/REGISTER.md: class class1 has 2 rows without a fix"
+expect_true "error.sh prints the occurrence count" grep -q 'Occurrences of class "class1": 2' "$TMP/c2.out"
 
 fresh
-printf '%s\n' '| 2026-01-01 | t | a | opravené | test |' '| 2026-01-02 | t | b | opravené | test |' >> "$W/agentic-brain/errors/REGISTER.md"; run_check
-expect "chyby s vyplnenou opravou prejdú" 0 "v poriadku"
+printf '%s\n' '| 2026-01-01 | t | a | fixed | test |' '| 2026-01-02 | t | b | fixed | test |' >> "$W/agentic-brain/errors/REGISTER.md"; run_check
+expect "errors with a filled-in fix pass" 0 "^check.sh: ok$"
 
 # scratch
-fresh; touch "$W/agentic-brain/scratch/poznamky.txt"; run_check
-expect "scratch neprázdny" 1 "CHYBA agentic-brain/scratch/poznamky.txt: scratch nie je prázdny"
+fresh; touch "$W/agentic-brain/scratch/notes.txt"; run_check
+expect "scratch not empty" 1 "ERROR agentic-brain/scratch/notes.txt: scratch is not empty"
 
-# pamäť
-fresh; printf -- '- [Chýba](nie-je.md): háčik\n' >> "$W/agentic-brain/memory/MEMORY.md"; run_check
-expect "MEMORY.md ukazuje na neexistujúci súbor" 1 "CHYBA agentic-brain/memory/MEMORY.md: riadok ukazuje na neexistujúci súbor memory/nie-je.md"
+# memory
+fresh; printf -- '- [Missing](missing.md): hook\n' >> "$W/agentic-brain/memory/MEMORY.md"; run_check
+expect "MEMORY.md points to a missing file" 1 "ERROR agentic-brain/memory/MEMORY.md: line points to a missing file memory/missing.md"
 
-fresh; printf 'obsah\n' > "$W/agentic-brain/memory/sirota.md"; run_check
-expect "súbor pamäte mimo indexu" 1 "CHYBA agentic-brain/memory/sirota.md: súbor nie je v indexe"
-printf -- '- [Sirota](sirota.md): háčik\n' >> "$W/agentic-brain/memory/MEMORY.md"; run_check
-expect "súbor pamäte v indexe prejde" 0 "v poriadku"
+fresh; printf 'content\n' > "$W/agentic-brain/memory/orphan.md"; run_check
+expect "memory file outside the index" 1 "ERROR agentic-brain/memory/orphan.md: file is not in the MEMORY.md index"
+printf -- '- [Orphan](orphan.md): hook\n' >> "$W/agentic-brain/memory/MEMORY.md"; run_check
+expect "memory file in the index passes" 0 "^check.sh: ok$"
 
-# odkazy
-fresh; printf '\n[mŕtvy](nie-je.md)\n' >> "$W/agentic-brain/decisions/README.md"; run_check
-expect "mŕtvy odkaz" 1 "CHYBA agentic-brain/decisions/README.md: mŕtvy odkaz na nie-je.md"
+# links
+fresh; printf '\n[dead](missing.md)\n' >> "$W/agentic-brain/decisions/README.md"; run_check
+expect "dead link" 1 "ERROR agentic-brain/decisions/README.md: dead link to missing.md"
 
-fresh; printf '\nPríklad `[x](nie-je.md)` v kóde.\n' >> "$W/agentic-brain/decisions/README.md"; run_check
-expect "odkaz v kóde sa nekontroluje" 0 "v poriadku"
+fresh; printf '\nExample `[x](missing.md)` in code.\n' >> "$W/agentic-brain/decisions/README.md"; run_check
+expect "link in code is not checked" 0 "^check.sh: ok$"
 
 fresh; printf '\n[ok](README.md) [web](https://example.org/a)\n' >> "$W/agentic-brain/decisions/README.md"
 run_check
-expect "existujúci a vonkajší odkaz prejdú" 0 "v poriadku"
+expect "existing and external links pass" 0 "^check.sh: ok$"
 
-# CLAUDE.md a AGENTS.md
-fresh; printf '@agentic-brain/RULES.md\nnavyše\n' > "$W/AGENTS.md"; run_check
-expect "CLAUDE.md a AGENTS.md rôzne" 1 "CHYBA AGENTS.md: obsah sa líši"
+# CLAUDE.md and AGENTS.md
+fresh; printf '@agentic-brain/RULES.md\nextra\n' > "$W/AGENTS.md"; run_check
+expect "CLAUDE.md and AGENTS.md differ" 1 "ERROR AGENTS.md: content differs"
 
-fresh; printf 'bez importu\n' | tee "$W/CLAUDE.md" > "$W/AGENTS.md"; run_check
-expect "chýba riadok importu" 1 "CHYBA CLAUDE.md: chýba riadok @agentic-brain/RULES.md"
+fresh; printf 'no import\n' | tee "$W/CLAUDE.md" > "$W/AGENTS.md"; run_check
+expect "import line is missing" 1 "ERROR CLAUDE.md: line @agentic-brain/RULES.md is missing"
 
 fresh; rm "$W/AGENTS.md"; run_check
-expect "chýba AGENTS.md" 1 "CHYBA AGENTS.md: súbor chýba"
+expect "AGENTS.md is missing" 1 "ERROR AGENTS.md: file is missing"
 
-# artefakty
+# artifacts
 fresh; mkdir -p "$W/agentic-brain/artifacts/web"; printf '# Web\n' > "$W/agentic-brain/artifacts/web/PLAYBOOK.md"; run_check
-expect "artefakt bez reference" 1 "CHYBA agentic-brain/artifacts/web/reference"
-mkdir "$W/agentic-brain/artifacts/web/reference"; printf '<html></html>\n' > "$W/agentic-brain/artifacts/web/reference/vzor.html"; run_check
-expect "artefakt s referenciou prejde" 0 "v poriadku"
+expect "artifact without reference" 1 "ERROR agentic-brain/artifacts/web/reference"
+mkdir "$W/agentic-brain/artifacts/web/reference"; printf '<html></html>\n' > "$W/agentic-brain/artifacts/web/reference/sample.html"; run_check
+expect "artifact with a reference passes" 0 "^check.sh: ok$"
 rm "$W/agentic-brain/artifacts/web/PLAYBOOK.md"; run_check
-expect "artefakt bez PLAYBOOK.md" 1 "CHYBA agentic-brain/artifacts/web: chýba PLAYBOOK.md"
+expect "artifact without PLAYBOOK.md" 1 "ERROR agentic-brain/artifacts/web: PLAYBOOK.md is missing"
 
-# globál
-fresh; mkdir -p "$HOME/agentic-brain/skills/chyba"; touch "$HOME/agentic-brain/RULES.md"; run_check
-expect "rovnaký skill v lokáli a v globále" 1 "CHYBA agentic-brain/skills/chyba: skill chyba existuje aj v globále"
-rm -rf "$HOME/agentic-brain/skills/chyba"; run_check
-expect "bez duplicity prejde" 0 "v poriadku"
+# global layer
+fresh; mkdir -p "$HOME/agentic-brain/skills/error"; touch "$HOME/agentic-brain/RULES.md"; run_check
+expect "same skill in the local and the global layer" 1 "ERROR agentic-brain/skills/error: skill error also exists in the global layer"
+rm -rf "$HOME/agentic-brain/skills/error"; run_check
+expect "without a duplicate it passes" 0 "^check.sh: ok$"
 
-fresh; mkdir -p "$HOME/agentic-brain/skills" "$W/agentic-brain/skills/zdielany/scripts"
+fresh; mkdir -p "$HOME/agentic-brain/skills" "$W/agentic-brain/skills/shared/scripts"
 touch "$HOME/agentic-brain/RULES.md"
-printf -- '---\nname: zdielany\ndescription: Použi, keď treba zdieľaný skill.\nscope: shared\n---\n' > "$W/agentic-brain/skills/zdielany/SKILL.md"
-printf '#!/usr/bin/env bash\ntrue\n' > "$W/agentic-brain/skills/zdielany/scripts/a.sh"; run_check
-expect "scope shared mimo globálu je upozornenie" 0 "UPOZORNENIE agentic-brain/skills/zdielany: scope shared"
+printf -- '---\nname: shared\ndescription: Use when a shared skill is needed.\nscope: shared\n---\n' > "$W/agentic-brain/skills/shared/SKILL.md"
+printf '#!/usr/bin/env bash\ntrue\n' > "$W/agentic-brain/skills/shared/scripts/a.sh"; run_check
+expect "scope shared outside the global layer is a warning" 0 "WARNING agentic-brain/skills/shared: scope is shared"
 rm -rf "$HOME/agentic-brain"
 
-# globálne repo samo (priečinok bez nadradeného agentic-brain/)
+# the global repo itself (a folder without a parent agentic-brain/)
 N=$((N + 1)); W="$TMP/flat$N"; mkdir -p "$W"; cp -a "$SRC/agentic-brain/." "$W/"; git -C "$W" init -q
 OUT=$(cd "$W" && bash bin/check.sh 2>&1); RC=$?
-expect "global (mozog je koreň repa) prejde" 0 "v poriadku"
+expect "global (the brain is the repo root) passes" 0 "^check.sh: ok$"
 
 # hook
 fresh; (cd "$W" && bash agentic-brain/bin/check.sh --install-hook) > "$TMP/hook.out" 2>&1
-expect_true "hook je nainštalovaný" test -x "$W/.git/hooks/pre-commit"
+expect_true "hook is installed" test -x "$W/.git/hooks/pre-commit"
 (cd "$W" && bash agentic-brain/bin/check.sh --install-hook) > "$TMP/hook2.out" 2>&1
-expect_true "opakovaná inštalácia hooku prejde" test "$?" -eq 0
+expect_true "repeated hook installation passes" test "$?" -eq 0
 GC=(git -C "$W" -c user.name=t -c user.email=t@example.org)
 "${GC[@]}" add -A >/dev/null 2>&1
-if "${GC[@]}" commit -qm prvy >/dev/null 2>&1; then echo "ok   commit s čistým repom prejde"; else echo "FAIL commit s čistým repom prejde"; FAILS=$((FAILS + 1)); fi
-touch "$W/agentic-brain/scratch/junk" "$W/novy-subor"
-"${GC[@]}" add novy-subor >/dev/null 2>&1
-if "${GC[@]}" commit -qm druhy >/dev/null 2>&1; then
-  echo "FAIL hook odmietne commit pri chybe"; FAILS=$((FAILS + 1))
+if "${GC[@]}" commit -qm first >/dev/null 2>&1; then echo "ok   commit in a clean repo passes"; else echo "FAIL commit in a clean repo passes"; FAILS=$((FAILS + 1)); fi
+touch "$W/agentic-brain/scratch/junk" "$W/new-file"
+"${GC[@]}" add new-file >/dev/null 2>&1
+if "${GC[@]}" commit -qm second >/dev/null 2>&1; then
+  echo "FAIL hook rejects a commit on error"; FAILS=$((FAILS + 1))
 else
-  echo "ok   hook odmietne commit pri chybe"
+  echo "ok   hook rejects a commit on error"
 fi
 
 fresh; mkdir -p "$W/.git/hooks"; printf '#!/bin/sh\nexit 0\n' > "$W/.git/hooks/pre-commit"
 (cd "$W" && bash agentic-brain/bin/check.sh --install-hook) > "$TMP/hook3.out" 2>&1; RC=$?; OUT=$(cat "$TMP/hook3.out")
-expect "cudzí hook sa neprepíše" 1 "existuje iný pre-commit hook"
+expect "foreign hook is not overwritten" 1 "another pre-commit hook exists"
 
 echo
-if [ "$FAILS" -gt 0 ]; then echo "check.test.sh: $FAILS zlyhaní"; exit 1; fi
-echo "check.test.sh: všetko prešlo"
+if [ "$FAILS" -gt 0 ]; then echo "check.test.sh: $FAILS failures"; exit 1; fi
+echo "check.test.sh: all passed"

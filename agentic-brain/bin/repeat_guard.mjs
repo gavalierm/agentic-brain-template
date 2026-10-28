@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// Hook PreToolUse pre Bash v Claude Code. Zamietne tretí rôzny ručný beh
-// toho istého programu v jednej relácii: mechanický krok patrí do skriptu.
+// PreToolUse hook for Bash in Claude Code. It rejects the third different manual
+// run of the same program in one session: a mechanical step belongs in a script.
 //
-// Vstup na stdin je JSON s `session_id` a `tool_input.command`.
-// Kód 0 povolí príkaz, kód 2 ho zamietne a stderr dostane agent.
-// Pri každej chybe (zlý vstup, nečitateľný stav) skončí kódom 0,
-// hook nikdy nezablokuje príkaz omylom.
+// The input on stdin is JSON with `session_id` and `tool_input.command`.
+// Exit code 0 allows the command, exit code 2 rejects it and the agent gets stderr.
+// On any error (bad input, unreadable state) it exits with code 0,
+// so the hook never blocks a command by mistake.
 import { readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
@@ -16,7 +16,7 @@ const KEYWORDS_SKIP_SEGMENT = new Set(["for", "case", "function", "done", "fi", 
 const KEYWORDS_STRIP = new Set(["do", "then", "else", "elif", "if", "while", "until", "!", "{", "(", "time"]);
 const EXEMPT = [/(^|\/)agentic-brain\/bin\//, /(^|\/)skills\/[^/]+\/scripts\//];
 
-// Rozdelí príkaz na časti podľa nezakotvených &&, ||, ;, |, & a nového riadku.
+// Splits a command into segments at unquoted &&, ||, ;, |, & and newlines.
 export function splitSegments(cmd) {
   const out = [];
   let cur = "";
@@ -44,7 +44,7 @@ export function splitSegments(cmd) {
   return out.map((s) => s.trim()).filter(Boolean);
 }
 
-// Rozdelí časť na slová, uvodzovky ostanú v slove.
+// Splits a segment into words, quotes stay in the word.
 export function splitWords(seg) {
   const words = [];
   let cur = "";
@@ -68,7 +68,7 @@ export function splitWords(seg) {
 
 const SUDO_WITH_VALUE = new Set(["-u", "-g", "-h", "-p", "-C", "-D", "-R", "-T", "-U"]);
 
-// Vráti { program, args, exempt } alebo null, keď časť nie je príkaz.
+// Returns { program, args, exempt } or null when the segment is not a command.
 export function parseSegment(seg) {
   let w = splitWords(seg);
   for (;;) {
@@ -96,7 +96,7 @@ export function loadAllow(file) {
   );
 }
 
-// Vráti { blocked: program|null, state } pre príkaz a doterajší stav.
+// Returns { blocked: program|null, state } for a command and the state so far.
 export function evaluate(command, state, allow) {
   const next = {};
   for (const [k, v] of Object.entries(state)) next[k] = [...v];
@@ -120,7 +120,7 @@ function main() {
   }
   const command = input?.tool_input?.command;
   if (typeof command !== "string" || !command.trim()) return 0;
-  const sid = String(input.session_id ?? "bez-relacie").replace(/[^A-Za-z0-9_-]/g, "_");
+  const sid = String(input.session_id ?? "no-session").replace(/[^A-Za-z0-9_-]/g, "_");
   const stateFile = join(tmpdir(), `agentic-brain-repeat-${sid}.json`);
   let state = {};
   try { state = JSON.parse(readFileSync(stateFile, "utf8")); } catch { state = {}; }
@@ -129,12 +129,12 @@ function main() {
   const res = evaluate(command, state, allow);
   if (res.blocked) {
     console.error(
-      `Tretí ručný beh \`${res.blocked}\` v relácii je mechanický krok, patrí do skriptu v ` +
-        "`agentic-brain/skills/<meno>/scripts/`. Napíš ho a spusti.",
+      `The third manual run of \`${res.blocked}\` in this session is a mechanical step and belongs in a script in ` +
+        "`agentic-brain/skills/<name>/scripts/`. Write it and run it.",
     );
     return 2;
   }
-  try { writeFileSync(stateFile, JSON.stringify(res.state)); } catch { /* stav je len pomôcka */ }
+  try { writeFileSync(stateFile, JSON.stringify(res.state)); } catch { /* the state is only a helper */ }
   return 0;
 }
 

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Inštalácia mozgu.
+# Installation of the brain.
 #
-#   install.sh           projektová vrstva v tomto repe: symlinky skillov
-#                        v .claude/skills a pre-commit hook
-#   install.sh --global  toto repo je klon globálneho mozgu (~/agentic-brain):
-#                        do ~/.claude/CLAUDE.md pridá import RULES.md a do
-#                        ~/.claude/skills dá symlinky na skilly
+#   install.sh           project layer in this repo: skill symlinks
+#                        in .claude/skills and the pre-commit hook
+#   install.sh --global  this repo is a clone of the global brain (~/agentic-brain):
+#                        adds an import of RULES.md to ~/.claude/CLAUDE.md and
+#                        puts symlinks to the skills in ~/.claude/skills
 #
-# Skript je idempotentný. Cieľ globálnej inštalácie je $HOME/.claude.
+# The script is idempotent. The target of the global installation is $HOME/.claude.
 set -u
 
 SELF_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -24,30 +24,30 @@ install_global() {
   local home claude imp rel_path link name d cur
   home=${HOME:-}
   if [ -z "$home" ] || [ ! -d "$home" ]; then
-    echo "HOME nie je nastavené alebo neexistuje" >&2
+    echo "HOME is not set or does not exist" >&2
     return 1
   fi
   home=$(cd "$home" && pwd -P)
   claude="$home/.claude"
   mkdir -p "$claude/skills"
 
-  # import RULES.md v ~/.claude/CLAUDE.md, cesta s ~ keď je mozog pod HOME
+  # import of RULES.md in ~/.claude/CLAUDE.md, path with ~ when the brain is under HOME
   case "$BRAIN" in
     "$home"/*) rel_path="~/${BRAIN#"$home"/}" ;;
     *) rel_path=$BRAIN ;;
   esac
   imp="@$rel_path/RULES.md"
   if [ -f "$claude/CLAUDE.md" ] && grep -qxF "$imp" "$claude/CLAUDE.md"; then
-    echo "Import už je: $imp"
+    echo "Import already present: $imp"
   else
     if [ -s "$claude/CLAUDE.md" ] && [ -n "$(tail -c1 "$claude/CLAUDE.md")" ]; then
       printf '\n' >> "$claude/CLAUDE.md"
     fi
     printf '%s\n' "$imp" >> "$claude/CLAUDE.md"
-    echo "Pridaný import do $claude/CLAUDE.md: $imp"
+    echo "Added import to $claude/CLAUDE.md: $imp"
   fi
 
-  # symlinky skillov
+  # skill symlinks
   for d in "$BRAIN"/skills/*/; do
     [ -d "$d" ] || continue
     name=$(basename "$d")
@@ -55,15 +55,15 @@ install_global() {
     if [ -L "$link" ]; then
       cur=$(readlink "$link")
       if [ "$cur" = "$BRAIN/skills/$name" ]; then
-        echo "Symlink už je: $link"
+        echo "Symlink already present: $link"
       else
-        echo "Preskočené, cudzí symlink: $link ukazuje na $cur"
+        echo "Skipped, foreign symlink: $link points to $cur"
       fi
     elif [ -e "$link" ]; then
-      echo "Preskočené, v ceste je súbor alebo priečinok: $link"
+      echo "Skipped, a file or folder is in the way: $link"
     else
       ln -s "$BRAIN/skills/$name" "$link"
-      echo "Vytvorený symlink: $link"
+      echo "Created symlink: $link"
     fi
   done
   return 0
@@ -72,5 +72,5 @@ install_global() {
 case "${1:-}" in
   "") install_project ;;
   --global) install_global ;;
-  *) echo "Použitie: install.sh [--global]" >&2; exit 2 ;;
+  *) echo "Usage: install.sh [--global]" >&2; exit 2 ;;
 esac

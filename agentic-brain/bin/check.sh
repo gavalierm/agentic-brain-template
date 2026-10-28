@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Kontrola repa projektu. Kód 0 je v poriadku, kód 1 je aspoň jedna chyba.
-# Beží z koreňa repa aj z podpriečinka. Chyba je jeden riadok na stderr s cestou,
-# upozornenie je riadok na stdout.
+# Check of the project repo. Exit code 0 is ok, exit code 1 means at least one error.
+# It runs from the repo root and from any subfolder. An error is one line on stderr
+# with a path, a warning is one line on stdout.
 #
-#   check.sh                 spustí všetky kontroly
-#   check.sh --install-hook  skopíruje bin/pre-commit do .git/hooks/pre-commit
+#   check.sh                 runs all checks
+#   check.sh --install-hook  copies bin/pre-commit to .git/hooks/pre-commit
 #
-# Premenná AGENTIC_BRAIN_GLOBAL môže ukázať na priečinok globálneho mozgu
-# (s RULES.md a skills/). Bez nej sa hľadá ~/agentic-brain.
+# The variable AGENTIC_BRAIN_GLOBAL may point to the folder of the global brain
+# (with RULES.md and skills/). Without it, the script looks for ~/agentic-brain.
 set -u
 
 SELF_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -15,7 +15,7 @@ BRAIN=$(cd "$SELF_DIR/.." && pwd -P)
 
 case "${1:-}" in
   ""|--install-hook) ;;
-  *) echo "Použitie: check.sh [--install-hook]" >&2; exit 2 ;;
+  *) echo "Usage: check.sh [--install-hook]" >&2; exit 2 ;;
 esac
 
 ROOT=$(git -C "$BRAIN" rev-parse --show-toplevel 2>/dev/null) || ROOT=""
@@ -24,23 +24,23 @@ if [ -z "$ROOT" ]; then
 fi
 ROOT=$(cd "$ROOT" && pwd -P)
 
-# projekt: priečinok agentic-brain/ v repe projektu, global: repo je samo mozog
+# project: the agentic-brain/ folder inside a project repo, global: the repo is the brain itself
 if [ "$BRAIN" = "$ROOT" ]; then MODE=global; else MODE=project; fi
 
 ERRS=0
-err() { echo "CHYBA $1: $2" >&2; ERRS=$((ERRS + 1)); }
-warn() { echo "UPOZORNENIE $1: $2"; }
+err() { echo "ERROR $1: $2" >&2; ERRS=$((ERRS + 1)); }
+warn() { echo "WARNING $1: $2"; }
 info() { echo "$1"; }
 rel() { printf '%s' "${1#"$ROOT"/}"; }
 
-# riadky frontmattru (medzi prvými dvoma ---)
+# frontmatter lines (between the first two ---)
 fm() { tr -d '\r' < "$1" | awk 'NR == 1 { if ($0 != "---") exit; next } $0 == "---" { exit } { print }'; }
 fm_get() { fm "$1" | sed -n "s/^$2:[[:space:]]*//p" | head -n 1; }
-# text bez blokov kódu a bez textu v spätných apostrofoch
+# text without code blocks and without text in backticks
 strip_code() { tr -d '\r' < "$1" | awk '/^```/ { f = !f; next } !f { gsub(/`[^`]*`/, ""); print }'; }
 nonempty_dir() { [ -d "$1" ] && [ -n "$(find "$1" -type f ! -name '.gitkeep' ! -name '.DS_Store' 2>/dev/null | head -n 1)" ]; }
 
-# priečinok globálneho mozgu, prázdny výstup a kód 1, keď neexistuje alebo je to tento
+# folder of the global brain, empty output and exit code 1 when it does not exist or is this one
 global_brain() {
   local d=""
   if [ -n "${AGENTIC_BRAIN_GLOBAL:-}" ]; then
@@ -58,20 +58,20 @@ global_brain() {
 
 install_hook() {
   local src="$BRAIN/bin/pre-commit" gitdir hooks dst
-  [ -f "$src" ] || { err "$(rel "$src")" "chýba pre-commit hook"; return 1; }
-  gitdir=$(git -C "$ROOT" rev-parse --git-common-dir 2>/dev/null) || { err "$ROOT" "nie je git repo, hook sa nenainštaluje"; return 1; }
+  [ -f "$src" ] || { err "$(rel "$src")" "pre-commit hook is missing"; return 1; }
+  gitdir=$(git -C "$ROOT" rev-parse --git-common-dir 2>/dev/null) || { err "$ROOT" "not a git repo, the hook is not installed"; return 1; }
   gitdir=$(cd "$ROOT" && cd "$gitdir" && pwd -P)
   hooks="$gitdir/hooks"
   dst="$hooks/pre-commit"
   if [ -e "$dst" ] && ! cmp -s "$src" "$dst"; then
-    err "$dst" "existuje iný pre-commit hook, nechal som ho, pridaj do neho volanie agentic-brain/bin/check.sh"
+    err "$dst" "another pre-commit hook exists and was left alone, add a call to agentic-brain/bin/check.sh to it"
     return 1
   fi
   mkdir -p "$hooks"
   cp "$src" "$dst" && chmod +x "$dst"
-  info "Hook nainštalovaný: $dst"
+  info "Hook installed: $dst"
   if [ -n "$(git -C "$ROOT" config core.hooksPath 2>/dev/null)" ]; then
-    warn "$dst" "core.hooksPath je nastavené, git hook z .git/hooks nespustí"
+    warn "$dst" "core.hooksPath is set, git will not run the hook from .git/hooks"
   fi
   return 0
 }
@@ -81,35 +81,35 @@ if [ "${1:-}" = "--install-hook" ]; then
   exit 1
 fi
 
-# 1. CLAUDE.md a AGENTS.md
+# 1. CLAUDE.md and AGENTS.md
 check_entry_files() {
   [ "$MODE" = project ] || return 0
   local line="@agentic-brain/RULES.md" f ok=1
   for f in CLAUDE.md AGENTS.md; do
-    if [ ! -f "$ROOT/$f" ]; then err "$f" "súbor chýba"; ok=0; continue; fi
-    grep -qxF "$line" "$ROOT/$f" || err "$f" "chýba riadok $line"
+    if [ ! -f "$ROOT/$f" ]; then err "$f" "file is missing"; ok=0; continue; fi
+    grep -qxF "$line" "$ROOT/$f" || err "$f" "line $line is missing"
   done
   if [ "$ok" = 1 ] && ! cmp -s "$ROOT/CLAUDE.md" "$ROOT/AGENTS.md"; then
-    err "AGENTS.md" "obsah sa líši od CLAUDE.md, súbory musia byť rovnaké"
+    err "AGENTS.md" "content differs from CLAUDE.md, the files must be identical"
   fi
 }
 
-# 2. skilly
+# 2. skills
 check_skills() {
   local d name f
   for d in "$BRAIN"/skills/*/; do
     [ -d "$d" ] || continue
     d=${d%/}; name=$(basename "$d"); f="$d/SKILL.md"
     if [ ! -f "$f" ]; then
-      err "$(rel "$d")" "chýba SKILL.md"
+      err "$(rel "$d")" "SKILL.md is missing"
     elif [ -z "$(fm_get "$f" description)" ]; then
-      err "$(rel "$f")" "frontmatter nemá description"
+      err "$(rel "$f")" "frontmatter has no description"
     fi
-    nonempty_dir "$d/scripts" || err "$(rel "$d")/scripts" "chýba scripts/ alebo je prázdny"
+    nonempty_dir "$d/scripts" || err "$(rel "$d")/scripts" "scripts/ is missing or empty"
   done
 }
 
-# 3. symlinky .claude/skills
+# 3. symlinks in .claude/skills
 check_symlinks() {
   [ "$MODE" = project ] || return 0
   local sdir="$ROOT/.claude/skills" d name link want cur p
@@ -121,15 +121,15 @@ check_symlinks() {
       [ "$cur" = "$want" ] && continue
       if [ -e "$link" ]; then
         [ "$(cd "$link" 2>/dev/null && pwd -P)" = "$BRAIN/skills/$name" ] && continue
-        err "$(rel "$link")" "symlink ukazuje na $cur, má na $want"
+        err "$(rel "$link")" "symlink points to $cur, should point to $want"
         continue
       fi
-      rm "$link"; info "ZMAZANÝ visiaci symlink $(rel "$link")"
+      rm "$link"; info "DELETED dangling symlink $(rel "$link")"
     elif [ -e "$link" ]; then
-      err "$(rel "$link")" "nie je symlink, má byť symlink na $want"
+      err "$(rel "$link")" "not a symlink, should be a symlink to $want"
       continue
     fi
-    mkdir -p "$sdir" && ln -s "$want" "$link" && info "VYTVORENÝ symlink $(rel "$link") na $want"
+    mkdir -p "$sdir" && ln -s "$want" "$link" && info "CREATED symlink $(rel "$link") to $want"
   done
   for p in "$sdir"/* "$sdir"/.[!.]*; do
     [ -L "$p" ] || [ -e "$p" ] || continue
@@ -137,44 +137,44 @@ check_symlinks() {
     case "$name" in .gitkeep|.DS_Store) continue ;; esac
     [ -d "$BRAIN/skills/$name" ] && continue
     if [ -L "$p" ] && [ ! -e "$p" ]; then
-      rm "$p"; info "ZMAZANÝ visiaci symlink $(rel "$p")"
+      rm "$p"; info "DELETED dangling symlink $(rel "$p")"
     else
-      err "$(rel "$p")" "položka v .claude/skills nemá skill v agentic-brain/skills"
+      err "$(rel "$p")" "entry in .claude/skills has no skill in agentic-brain/skills"
     fi
   done
 }
 
-# 4. rovnaké meno skillu v lokáli a v globále
+# 4. same skill name in the local and the global layer
 check_duplicates() {
   local g d name
   g=$(global_brain) || return 0
   for d in "$BRAIN"/skills/*/; do
     [ -d "$d" ] || continue
     name=$(basename "$d")
-    [ -d "$g/skills/$name" ] && err "$(rel "${d%/}")" "skill $name existuje aj v globále ($g/skills/$name)"
+    [ -d "$g/skills/$name" ] && err "$(rel "${d%/}")" "skill $name also exists in the global layer ($g/skills/$name)"
   done
 }
 
-# 5. artefakty
+# 5. artifacts
 check_artifacts() {
   local d
   for d in "$BRAIN"/artifacts/*/; do
     [ -d "$d" ] || continue
     d=${d%/}
-    [ -f "$d/PLAYBOOK.md" ] || err "$(rel "$d")" "chýba PLAYBOOK.md"
-    nonempty_dir "$d/reference" || err "$(rel "$d")/reference" "chýba reference/ alebo je prázdny"
+    [ -f "$d/PLAYBOOK.md" ] || err "$(rel "$d")" "PLAYBOOK.md is missing"
+    nonempty_dir "$d/reference" || err "$(rel "$d")/reference" "reference/ is missing or empty"
   done
 }
 
-# 6. register chýb
+# 6. error register
 check_register() {
   local f="$BRAIN/errors/REGISTER.md" kind t n
-  [ -f "$f" ] || { err "$(rel "$f")" "chýba register chýb"; return; }
+  [ -f "$f" ] || { err "$(rel "$f")" "error register is missing"; return; }
   while IFS=$'\t' read -r kind t n; do
     if [ "$kind" = ERR ]; then
-      err "$(rel "$f")" "trieda $t má $n riadkov bez opravy, oprav príčinu a vyplň stĺpce oprava a test (alebo založ úlohu)"
+      err "$(rel "$f")" "class $t has $n rows without a fix, fix the cause and fill in the fix and test columns (or open a task)"
     else
-      warn "$(rel "$f")" "trieda $t je otvorená, jeden riadok bez opravy"
+      warn "$(rel "$f")" "class $t is open, one row without a fix"
     fi
   done < <(tr -d '\r' < "$f" | awk -F'|' '
     function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
@@ -198,28 +198,28 @@ check_scratch() {
   local p
   [ -d "$BRAIN/scratch" ] || return 0
   while IFS= read -r p; do
-    err "$(rel "$p")" "scratch nie je prázdny, zmaž súbor alebo z neho urob skill"
+    err "$(rel "$p")" "scratch is not empty, delete the file or turn it into a skill"
   done < <(find "$BRAIN/scratch" -mindepth 1 ! -name '.gitkeep' | sort)
 }
 
-# 8. pamäť
+# 8. memory
 check_memory() {
   local idx="$BRAIN/memory/MEMORY.md" t f name
-  [ -f "$idx" ] || { err "$(rel "$idx")" "chýba index pamäte"; return; }
+  [ -f "$idx" ] || { err "$(rel "$idx")" "memory index is missing"; return; }
   while IFS= read -r t; do
     case "$t" in http://*|https://*) continue ;; esac
     t=${t%%#*}
-    [ -e "$BRAIN/memory/$t" ] || err "$(rel "$idx")" "riadok ukazuje na neexistujúci súbor memory/$t"
+    [ -e "$BRAIN/memory/$t" ] || err "$(rel "$idx")" "line points to a missing file memory/$t"
   done < <(strip_code "$idx" | grep '^- \[' | sed -n 's/^- \[[^]]*\](\([^)]*\)).*/\1/p')
   for f in "$BRAIN"/memory/*.md; do
     [ -f "$f" ] || continue
     name=$(basename "$f")
     [ "$name" = MEMORY.md ] && continue
-    strip_code "$idx" | grep -qF "($name)" || err "$(rel "$f")" "súbor nie je v indexe MEMORY.md"
+    strip_code "$idx" | grep -qF "($name)" || err "$(rel "$f")" "file is not in the MEMORY.md index"
   done
 }
 
-# 9. relatívne odkazy v md súboroch
+# 9. relative links in md files
 check_md_links() {
   local f dir link path
   while IFS= read -r f; do
@@ -228,12 +228,12 @@ check_md_links() {
       case "$link" in http://*|https://*|mailto:*|\#*|/*|~*|"") continue ;; esac
       path=${link%%#*}; path=${path%% *}
       [ -n "$path" ] || continue
-      [ -e "$dir/$path" ] || err "$(rel "$f")" "mŕtvy odkaz na $path"
+      [ -e "$dir/$path" ] || err "$(rel "$f")" "dead link to $path"
     done < <(strip_code "$f" | grep -o '\[[^]]*\]([^)]*)' | sed 's/^\[[^]]*\](\(.*\))$/\1/')
   done < <(find "$BRAIN" -name '*.md' ! -path "$BRAIN/scratch/*" ! -path '*/.git/*' | sort)
 }
 
-# 10. položky so scope: shared, ktoré nie sú v globále
+# 10. items with scope: shared that are not in the global layer
 check_shared() {
   local g kind file d name
   g=$(global_brain) || return 0
@@ -243,7 +243,7 @@ check_shared() {
       [ -f "$d$file" ] || continue
       name=$(basename "$d")
       if [ "$(fm_get "$d$file" scope)" = shared ] && [ ! -d "$g/$kind/$name" ]; then
-        warn "$(rel "${d%/}")" "scope shared, ale v globále ($g/$kind) nie je, uveď ho v hlásení operátorovi"
+        warn "$(rel "${d%/}")" "scope is shared but it is not in the global layer ($g/$kind), name it in the report to the operator"
       fi
     done
   done
@@ -261,8 +261,8 @@ check_md_links
 check_shared
 
 if [ "$ERRS" -gt 0 ]; then
-  echo "check.sh: $ERRS chýb" >&2
+  echo "check.sh: $ERRS errors" >&2
   exit 1
 fi
-echo "check.sh: v poriadku"
+echo "check.sh: ok"
 exit 0

@@ -1,12 +1,12 @@
-# Register chýb
+# Error register
 
-Jeden riadok je jeden výskyt chyby. Riadok pridáva skript `skills/chyba/scripts/chyba.sh`, nepíš ho ručne.
+One row is one occurrence of an error. The script `skills/error/scripts/error.sh` adds the row. Do not write it by hand.
 
-- Trieda: krátke meno druhu chyby. Rovnaký druh má rovnaké meno.
-- Oprava: zmena súboru, ktorá chybu zablokuje (nástroj, pravidlo, kontrola). Vyplníš ju po oprave.
-- Test: príkaz, ktorý na chybe zlyhá a po oprave prejde.
+- Class: a short name for the kind of error. The same kind gets the same name.
+- Fix: the file change that blocks the error (a tool, a rule, a check). You fill it in after the fix.
+- Test: a command that fails on the error and passes after the fix.
 
-Dva a viac riadkov tej istej triedy bez opravy zlyhá v `bin/check.sh`. Jeden riadok bez opravy je upozornenie.
+Two or more rows of the same class without a fix fail in `bin/check.sh`. One row without a fix is a warning.
 
-| dátum | trieda | opis | oprava | test |
+| date | class | description | fix | test |
 |---|---|---|---|---|
