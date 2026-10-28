@@ -69,7 +69,7 @@ check "adopt (different files): output reports the difference" has "$OUT" "diffe
 check "adopt (different files): import in both" test "$(grep -lxF '@agentic-brain/RULES.md' "$T4/CLAUDE.md" "$T4/AGENTS.md" | wc -l)" -eq 2
 
 # without --project nothing about the project layer appears
-check "adopt (no --project): no project line in RULES.md" test "$(grep -c '^project:' "$T2/agentic-brain/RULES.md")" -eq 0
+check "adopt (no --project): no project line in RULES.md" test "$(head -n 5 "$T2/agentic-brain/RULES.md" | grep -c '^project:')" -eq 0
 check "adopt (no --project): RULES.md has no frontmatter" test "$(head -n 1 "$T2/agentic-brain/RULES.md")" != "---"
 check "adopt (no --project): only the template skills are linked" test "$(ls "$T2/.claude/skills" | tr '\n' ' ')" = "error task-end "
 
@@ -95,13 +95,13 @@ OUT=$(bash "$SRC/agentic-brain/bin/adopt.sh" --project ../proj/agentic-brain "$T
 B=$(cd "$T5" && find . -path ./.git -prune -o -type f -print0 | sort -z | xargs -0 cat | cksum)
 check "adopt --project: second run changes nothing" test "$A" = "$B"
 check "adopt --project: second run exit code 0" test "$RC" -eq 0
-check "adopt --project: the line is written once" test "$(grep -c '^project:' "$T5/agentic-brain/RULES.md")" -eq 1
+check "adopt --project: the line is written once" test "$(head -n 5 "$T5/agentic-brain/RULES.md" | grep -c '^project:')" -eq 1
 
 mkdir -p "$TMP/pp/other/agentic-brain/skills/oskill/scripts"
 printf 'x\n' > "$TMP/pp/other/agentic-brain/skills/oskill/scripts/a.sh"
 OUT=$(bash "$SRC/agentic-brain/bin/adopt.sh" --project ../other/agentic-brain "$T5" 2>&1); RC=$?
 check "adopt --project: a different value is reported" has "$OUT" "already has project: ../proj/agentic-brain"
-check "adopt --project: a different value is not written" test "$(grep -c '^project:' "$T5/agentic-brain/RULES.md")" -eq 1 -a "$(sed -n '2p' "$T5/agentic-brain/RULES.md")" = "project: ../proj/agentic-brain"
+check "adopt --project: a different value is not written" test "$(head -n 5 "$T5/agentic-brain/RULES.md" | grep -c '^project:')" -eq 1 -a "$(sed -n '2p' "$T5/agentic-brain/RULES.md")" = "project: ../proj/agentic-brain"
 check "adopt --project: a different value creates no symlinks" test ! -e "$T5/.claude/skills/oskill"
 
 # existing RULES.md with a frontmatter but without the project line, and an existing foreign skill entry

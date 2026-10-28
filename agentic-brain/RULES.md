@@ -37,13 +37,33 @@ Before you report the end of a task, run the skill `task-end`. It verifies these
 - New knowledge is in `memory/` or in `decisions/`.
 - A skill or artifact that reaches beyond the project has `scope: shared` in its frontmatter and appears in the report to the operator.
 
-## Central and local
+## Layers
 
-This folder is the local layer of the project. The optional second layer is a central repo with the same structure. On the agent's machine it is cloned as `~/agentic-brain` and installed with `agentic-brain/bin/install.sh --global`.
+The brain has three layers with the same structure: `RULES.md`, `skills/`, `artifacts/`, `errors/`, `decisions/`, `memory/`, `scratch/` and `bin/`. One `check.sh`, `install.sh` and `adopt.sh` serve all of them.
 
-An optional line `upstream: <url>` in the header of this file points to the central repo.
+- Global layer: the repo `~/agentic-brain` on the agent's machine. Rules and skills for all projects on that machine. The user installs it with `bin/install.sh --global`.
+- Project layer: the folder `agentic-brain/` in the repo of a project that stands above several code repos. It holds the knowledge of the project: artifacts, source material and domain memory. It is optional, a project with one repo has no project layer.
+- Repo layer: the folder `agentic-brain/` in each code repo, with its own content. It is not a clone or a submodule of the project layer. This folder is the repo layer.
 
-The operator promotes an item with `scope: shared` to the center. The agent only marks it in the end-of-task report. A skill with the same name in the local and the central layer is an error, and `check.sh` reports it.
+The header of this file may hold a frontmatter, a block between two lines `---` at the start of the file, with these optional lines.
+
+```
+---
+upstream: <url>
+project: <path>
+---
+```
+
+- `upstream: <url>` in the global repo points to the repo it comes from.
+- `project: <path>` in the repo layer points to the project layer. The path is relative to the repo root, for example `../project/agentic-brain`. `adopt.sh --project <path>` writes it.
+
+When `project:` is set, read `RULES.md` of the project layer and the lists in its `artifacts/` and `memory/MEMORY.md` at the start of a task. Claude Code reads skills only from `.claude/skills`, so `check.sh` creates a symlink `.claude/skills/<name>` for each skill of the project layer.
+
+A skill name exists in one layer only. The same name in two layers is an error, and `check.sh` reports it.
+
+The operator promotes an item with `scope: shared` to the global or the project layer. The agent only marks it in the end-of-task report.
+
+`CLAUDE.md` and `AGENTS.md` of a repo stay a single line, `@agentic-brain/RULES.md`. State, decisions and source material go to `decisions/`, `memory/` and `artifacts/`, not to `CLAUDE.md`.
 
 ## Artifact
 
