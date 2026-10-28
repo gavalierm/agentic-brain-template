@@ -14,7 +14,11 @@
 # the script reads the line "project: <path>" in the frontmatter of this repo's
 # agentic-brain/RULES.md (path relative to the repo root). Without both, the repo
 # has no project layer. The project layer is checked only inside a repo (not in
-# the global brain). Its skills get symlinks in .claude/skills.
+# the global brain). Its skills get symlinks in .claude/skills, except the skills the repo
+# layer has under the same name (the link goes to the nearest layer).
+#
+# A skill with the same name in two layers is an error when its SKILL.md differs. The same
+# SKILL.md (the same skill of the template) may exist in every layer.
 set -u
 
 SELF_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
@@ -180,7 +184,9 @@ check_symlinks() {
     for d in "$PROJ_DIR"/skills/*/; do
       [ -d "$d" ] || continue
       name=$(basename "$d")
-      [ -d "$BRAIN/skills/$name" ] && continue # a duplicate, check_duplicates reports it
+      # the repo layer has the skill: the link goes to the nearest layer (the repo layer),
+      # and a different SKILL.md is reported by check_duplicates
+      [ -d "$BRAIN/skills/$name" ] && continue
       sync_link "$sdir/$name" "$base/skills/$name" "$PROJ_DIR/skills/$name"
     done
   fi
@@ -198,27 +204,29 @@ check_symlinks() {
   done
 }
 
-# 4. same skill name in two layers (this layer, the project layer, the global layer)
+# 4. same skill name in two layers (this layer, the project layer, the global layer).
+# The same SKILL.md in both is the same skill of the template and passes. A different SKILL.md is an error.
+same_skill() { [ -f "$1/SKILL.md" ] && [ -f "$2/SKILL.md" ] && cmp -s "$1/SKILL.md" "$2/SKILL.md"; }
 check_duplicates() {
   local g="" p="" d name
   g=$(global_brain) || g=""
   p=$PROJ_DIR
   for d in "$BRAIN"/skills/*/; do
     [ -d "$d" ] || continue
-    name=$(basename "$d")
-    if [ -n "$g" ] && [ -d "$g/skills/$name" ]; then
-      err "$(rel "${d%/}")" "skill $name also exists in the global layer ($g/skills/$name)"
+    d=${d%/}; name=$(basename "$d")
+    if [ -n "$g" ] && [ -d "$g/skills/$name" ] && ! same_skill "$d" "$g/skills/$name"; then
+      err "$(rel "$d")" "skill $name also exists in the global layer ($g/skills/$name) with a different SKILL.md"
     fi
-    if [ -n "$p" ] && [ -d "$p/skills/$name" ]; then
-      err "$(rel "${d%/}")" "skill $name also exists in the project layer ($p/skills/$name)"
+    if [ -n "$p" ] && [ -d "$p/skills/$name" ] && ! same_skill "$d" "$p/skills/$name"; then
+      err "$(rel "$d")" "skill $name also exists in the project layer ($p/skills/$name) with a different SKILL.md"
     fi
   done
   if [ -n "$g" ] && [ -n "$p" ]; then
     for d in "$p"/skills/*/; do
       [ -d "$d" ] || continue
-      name=$(basename "$d")
-      if [ -d "$g/skills/$name" ]; then
-        err "$PROJ_RAW/skills/$name" "skill $name exists in both the project layer and the global layer ($g/skills/$name)"
+      d=${d%/}; name=$(basename "$d")
+      if [ -d "$g/skills/$name" ] && ! same_skill "$d" "$g/skills/$name"; then
+        err "$PROJ_RAW/skills/$name" "skill $name exists in both the project layer and the global layer ($g/skills/$name) with a different SKILL.md"
       fi
     done
   fi

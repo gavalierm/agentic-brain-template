@@ -114,6 +114,20 @@ check "adopt --project (frontmatter): the body stays" grep -qxF 'own rules' "$T6
 check "adopt --project (frontmatter): an existing entry is skipped" has "$OUT" "Skipped, already exists: .claude/skills/pskill"
 check "adopt --project (frontmatter): the existing entry stays a folder" test -d "$T6/.claude/skills/pskill" -a ! -L "$T6/.claude/skills/pskill"
 
+# the project layer holds the same skills as the template (a layer made from the template)
+T8="$TMP/pp8/repo"; mkdir -p "$T8" "$TMP/pp8/proj"; git -C "$T8" init -q
+cp -a "$PL/." "$TMP/pp8/proj/agentic-brain/" 2>/dev/null || { mkdir -p "$TMP/pp8/proj/agentic-brain"; cp -a "$PL/." "$TMP/pp8/proj/agentic-brain/"; }
+cp -a "$SRC/agentic-brain/skills/error" "$TMP/pp8/proj/agentic-brain/skills/error"
+OUT=$(bash "$SRC/agentic-brain/bin/adopt.sh" --project ../proj/agentic-brain "$T8" 2>&1); RC=$?
+check "adopt --project (shared skill): exit code 0" test "$RC" -eq 0
+check "adopt --project (shared skill): the skip is reported" has "$OUT" "Skipped, the repo layer has skill error"
+check "adopt --project (shared skill): the link points to the repo layer" test "$(readlink "$T8/.claude/skills/error")" = "../../agentic-brain/skills/error"
+check "adopt --project (shared skill): the project only skill is linked" test "$(readlink "$T8/.claude/skills/pskill")" = "../../../proj/agentic-brain/skills/pskill"
+check "adopt --project (shared skill): check.sh passes in the target" bash "$T8/agentic-brain/bin/check.sh"
+OUT=$(bash "$SRC/agentic-brain/bin/adopt.sh" --project ../proj/agentic-brain "$T8" 2>&1); RC=$?
+check "adopt --project (shared skill): second run exit code 0" test "$RC" -eq 0
+check "adopt --project (shared skill): second run keeps the repo link" test "$(readlink "$T8/.claude/skills/error")" = "../../agentic-brain/skills/error"
+
 # a missing project layer is an error and changes nothing
 T7="$TMP/pp/repo7"; mkdir -p "$T7"; git -C "$T7" init -q
 OUT=$(bash "$SRC/agentic-brain/bin/adopt.sh" --project ../nope/agentic-brain "$T7" 2>&1); RC=$?

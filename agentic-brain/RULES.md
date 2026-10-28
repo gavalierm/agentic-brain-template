@@ -57,9 +57,9 @@ project: <path>
 - `upstream: <url>` in the global repo points to the repo it comes from.
 - `project: <path>` in the repo layer points to the project layer. The path is relative to the repo root, for example `../project/agentic-brain`. `adopt.sh --project <path>` writes it.
 
-When `project:` is set, read `RULES.md` of the project layer and the lists in its `artifacts/` and `memory/MEMORY.md` at the start of a task. Claude Code reads skills only from `.claude/skills`, so `check.sh` creates a symlink `.claude/skills/<name>` for each skill of the project layer.
+When `project:` is set, read `RULES.md` of the project layer and the lists in its `artifacts/` and `memory/MEMORY.md` at the start of a task. Claude Code reads skills only from `.claude/skills`, so `check.sh` creates a symlink `.claude/skills/<name>` for each skill of the project layer that the repo layer does not have.
 
-A skill name exists in one layer only. The same name in two layers is an error, and `check.sh` reports it.
+The same skill name in two layers is an error when the `SKILL.md` differs, and `check.sh` reports it. The same skill of the template (identical `SKILL.md`) may exist in every layer, for example `error` and `task-end`. Its symlink in `.claude/skills` points to the nearest layer, the repo layer before the project layer.
 
 The operator promotes an item with `scope: shared` to the global or the project layer. The agent only marks it in the end-of-task report.
 

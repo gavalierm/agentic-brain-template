@@ -6,7 +6,9 @@
 #                     path relative to the root of the target repo (for example
 #                     ../project/agentic-brain). The script writes "project: <path>" into
 #                     the frontmatter of the target's agentic-brain/RULES.md and creates the
-#                     symlinks .claude/skills/<name> to the skills of the project layer.
+#                     symlinks .claude/skills/<name> to the skills of the project layer, except
+#                     the skills the repo layer has under the same name (that link goes to the
+#                     repo layer).
 set -u
 
 usage() { echo "Usage: adopt.sh [--project <path>] <target-repo>" >&2; exit 2; }
@@ -109,7 +111,9 @@ if [ -n "$PROJECT" ]; then
       [ -d "$d" ] || continue
       name=$(basename "$d")
       link="$TARGET/.claude/skills/$name"
-      if [ -L "$link" ] || [ -e "$link" ]; then
+      if [ -d "$DEST/skills/$name" ]; then
+        echo "Skipped, the repo layer has skill $name"
+      elif [ -L "$link" ] || [ -e "$link" ]; then
         echo "Skipped, already exists: .claude/skills/$name"
       else
         mkdir -p "$TARGET/.claude/skills"

@@ -51,13 +51,13 @@ project: ../project/agentic-brain
 
 `agentic-brain/bin/adopt.sh --project <path> <target-repo>` writes the line, creates the frontmatter if the file has none, and creates the skill symlinks. If the file already has a different `project:` value, the script prints it and changes nothing. A path that does not exist is an error with exit code 1. Instead of the line, `check.sh` also reads the variable `AGENTIC_BRAIN_PROJECT`.
 
-The skills of the project layer reach the code repo through symlinks. Claude Code loads skills only from `.claude/skills` in the folder where it starts and in the parent folders up to the repo root (see the [skills documentation](https://code.claude.com/docs/en/skills), checked on 28 October 2026). A project layer outside the repo root is not found that way. For this reason `adopt.sh` creates `.claude/skills/<name>` as a relative symlink to each skill of the project layer, and `check.sh` keeps them.
+The skills of the project layer reach the code repo through symlinks. Claude Code loads skills only from `.claude/skills` in the folder where it starts and in the parent folders up to the repo root (see the [skills documentation](https://code.claude.com/docs/en/skills), checked on 28 October 2026). A project layer outside the repo root is not found that way. For this reason `adopt.sh` creates `.claude/skills/<name>` as a relative symlink to each skill of the project layer that the repo layer does not have, and `check.sh` keeps them.
 
 What `check.sh` checks for the project layer:
 
 - If `project:` is set, the folder exists and has `RULES.md` or `skills/`. Otherwise it reports "project layer <path> is missing".
-- Each skill of the project layer has a symlink in `.claude/skills`. A missing one is created, a dangling one is deleted. A symlink into the project layer is not a foreign entry.
-- A skill name in two layers is an error, and the message names the layer.
+- Each skill of the project layer that the repo layer does not have has a symlink in `.claude/skills`. A missing one is created, a dangling one is deleted. A symlink into the project layer is not a foreign entry.
+- A skill name in two layers is an error when the `SKILL.md` differs, and the message names the layer. The same skill of the template (identical `SKILL.md`) may exist in every layer. Its symlink points to the nearest layer, the repo layer before the project layer. `adopt.sh --project` prints "Skipped, the repo layer has skill <name>" for such a skill.
 - An item with `scope: shared` that is in neither the global nor the project layer is a warning.
 
 ## What check.sh does
@@ -68,7 +68,7 @@ What `check.sh` checks for the project layer:
 - Each skill has a `SKILL.md` with a `description` and a non-empty `scripts/`.
 - Each skill of the repo layer and of the project layer has a symlink in `.claude/skills`. A missing one is created, a dangling one is deleted, a foreign entry is reported.
 - A `project:` line (or `AGENTIC_BRAIN_PROJECT`) points to an existing project layer.
-- A skill with the same name in two of the layers (repo, project, global) is an error.
+- A skill with the same name in two of the layers (repo, project, global) is an error when its `SKILL.md` differs. An identical `SKILL.md` is the same skill of the template and passes.
 - Each artifact has a `PLAYBOOK.md` and a non-empty `reference/`.
 - Two or more rows of the error register with the same class and no fix are an error. One such row is a warning.
 - `scratch/` is empty.

@@ -184,9 +184,46 @@ expect "project symlink to another folder is an error" 1 "ERROR .claude/skills/p
 fresh; mkproj; mkdir "$P/agentic-brain/skills/error"; run_check
 expect "same skill in the repo and the project layer" 1 "ERROR agentic-brain/skills/error: skill error also exists in the project layer"
 
+# the same skill of the template (identical SKILL.md) in several layers
+copy_skill() { # skill name, target layer dir [, source layer dir, default the repo layer]
+  local from=${3:-$W/agentic-brain}
+  [ -f "$from/skills/$1/SKILL.md" ] || { echo "test setup: no skill $1 in $from"; exit 2; }
+  mkdir -p "$2/skills"; cp -a "$from/skills/$1" "$2/skills/$1"
+}
+fresh; mkproj; copy_skill error "$P/agentic-brain"; copy_skill task-end "$P/agentic-brain"; run_check
+expect "same SKILL.md in the repo and the project layer passes" 0 "^check.sh: ok$"
+expect_true "the link of a shared skill points to the repo layer" test "$(readlink "$W/.claude/skills/error")" = "../../agentic-brain/skills/error"
+expect_true "a second shared skill links to the repo layer too" test "$(readlink "$W/.claude/skills/task-end")" = "../../agentic-brain/skills/task-end"
+expect_true "the project only skill still gets its link" test -L "$W/.claude/skills/pskill"
+run_check
+expect "second run with shared skills prints nothing new" 0 "^check.sh: ok$"
+
+fresh; mkproj; copy_skill error "$P/agentic-brain"; printf '\nDifferent text.\n' >> "$P/agentic-brain/skills/error/SKILL.md"; run_check
+expect "different SKILL.md in the repo and the project layer" 1 "ERROR agentic-brain/skills/error: skill error also exists in the project layer .* with a different SKILL.md"
+expect_true "the link of a different skill stays on the repo layer" test "$(readlink "$W/.claude/skills/error")" = "../../agentic-brain/skills/error"
+
+fresh; mkproj; mkdir -p "$P/agentic-brain/skills/error"; run_check
+expect "a project skill without SKILL.md is a different skill" 1 "ERROR agentic-brain/skills/error: skill error also exists in the project layer"
+
+fresh; copy_skill error "$HOME/agentic-brain"; touch "$HOME/agentic-brain/RULES.md"; run_check
+expect "same SKILL.md in the repo and the global layer passes" 0 "^check.sh: ok$"
+printf '\nDifferent text.\n' >> "$HOME/agentic-brain/skills/error/SKILL.md"; run_check
+expect "different SKILL.md in the repo and the global layer" 1 "ERROR agentic-brain/skills/error: skill error also exists in the global layer .* with a different SKILL.md"
+rm -rf "$HOME/agentic-brain"
+
+fresh; mkproj; copy_skill pskill "$HOME/agentic-brain" "$P/agentic-brain"; touch "$HOME/agentic-brain/RULES.md"; run_check
+expect "same SKILL.md in the project and the global layer passes" 0 "^check.sh: ok$"
+printf '\nDifferent text.\n' >> "$HOME/agentic-brain/skills/pskill/SKILL.md"; run_check
+expect "different SKILL.md in the project and the global layer" 1 "ERROR .*proj$N/agentic-brain/skills/pskill: skill pskill exists in both the project layer and the global layer .* with a different SKILL.md"
+rm -rf "$HOME/agentic-brain"
+
+fresh; mkproj; copy_skill error "$P/agentic-brain"; copy_skill error "$HOME/agentic-brain"; touch "$HOME/agentic-brain/RULES.md"; run_check
+expect "the same skill in all three layers passes" 0 "^check.sh: ok$"
+rm -rf "$HOME/agentic-brain"
+
 fresh; mkproj; run_check
 mkdir -p "$HOME/agentic-brain/skills/pskill"; touch "$HOME/agentic-brain/RULES.md"; run_check
-expect "same skill in the project and the global layer" 1 "ERROR .*proj$N/agentic-brain/skills/pskill: skill pskill exists in both the project layer and the global layer"
+expect "a global skill without SKILL.md differs from the project skill" 1 "ERROR .*proj$N/agentic-brain/skills/pskill: skill pskill exists in both the project layer and the global layer"
 rm -rf "$HOME/agentic-brain"
 
 fresh; setproj "../nope/agentic-brain"; run_check
